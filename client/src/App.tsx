@@ -9,7 +9,7 @@ import { JoinRoomPayload, AvailableRoom, AvailableRoomsMessage } from "./types";
 import "./App.css";
 
 function App() {
-    // Player's Ethereum address
+    // Player's Ethereum address - now managed by useMetaMask hook in Lobby
     const [eoaAddress, setEoaAddress] = useState<string>("");
 
     // Game view state

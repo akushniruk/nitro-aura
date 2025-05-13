@@ -5,7 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
-import { Wallet, Users, Loader2, KeyRound, GamepadIcon, RefreshCw, Clock } from 'lucide-react';
+import { Wallet, Users, Loader2, KeyRound, GamepadIcon, RefreshCw, Clock, AlertCircle } from 'lucide-react';
+import { useMetaMask } from '../hooks/useMetaMask';
 
 interface LobbyProps {
   onJoinRoom: (payload: JoinRoomPayload) => void;
@@ -16,16 +17,24 @@ interface LobbyProps {
 }
 
 export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onGetAvailableRooms }: LobbyProps) {
-  const [eoa, setEoa] = useState('');
   const [roomId, setRoomId] = useState('');
-  const [eoaError, setEoaError] = useState('');
   const [roomIdError, setRoomIdError] = useState('');
   const [mode, setMode] = useState<'create' | 'join'>('create');
   const [loadingRooms, setLoadingRooms] = useState(false);
   
+  // Use MetaMask hook for wallet connection
+  const { 
+    address, 
+    isConnected: isWalletConnected, 
+    connectWallet, 
+    isConnecting,
+    error: metamaskError,
+    isMetaMaskInstalled
+  } = useMetaMask();
+
   // Fetch available rooms when tab changes to 'join'
   useEffect(() => {
-    if (mode === 'join' && isConnected) {
+    if (mode === 'join' && isConnected && isWalletConnected) {
       setLoadingRooms(true);
       onGetAvailableRooms();
       // Set a timeout to hide the loading indicator after 2 seconds
@@ -36,20 +45,12 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
       
       return () => clearTimeout(timeoutId);
     }
-  }, [mode, isConnected, onGetAvailableRooms]);
+  }, [mode, isConnected, isWalletConnected, onGetAvailableRooms]);
   
   // When availableRooms changes, stop the loading indicator
   useEffect(() => {
     setLoadingRooms(false);
   }, [availableRooms]);
-
-  // Validate Ethereum address format
-  const validateEoa = (address: string): boolean => {
-    // Basic EOA validation - 0x followed by 40 hex characters
-    const isValid = /^0x[a-fA-F0-9]{40}$/.test(address);
-    setEoaError(isValid ? '' : 'Please enter a valid Ethereum address');
-    return isValid;
-  };
 
   // Validate Room ID format for joining
   const validateRoomId = (id: string): boolean => {
@@ -76,7 +77,7 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
     setRoomIdError('');
     
     // Fetch available rooms when switching to join tab
-    if (value === 'join' && isConnected) {
+    if (value === 'join' && isConnected && isWalletConnected) {
       onGetAvailableRooms();
     }
   };
@@ -101,17 +102,17 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
   
   // Handle joining a specific available room
   const handleJoinAvailableRoom = (selectedRoomId: string) => {
-    if (!validateEoa(eoa)) {
+    if (!isWalletConnected || !address) {
       return;
     }
     
-    console.log("Joining available room with EOA:", eoa, "and roomId:", selectedRoomId);
-    onJoinRoom({ eoa, roomId: selectedRoomId });
+    console.log("Joining available room with address:", address, "and roomId:", selectedRoomId);
+    onJoinRoom({ eoa: address, roomId: selectedRoomId });
   };
 
   // Handle manual refresh of available rooms
   const handleRefreshRooms = () => {
-    if (isConnected) {
+    if (isConnected && isWalletConnected) {
       setLoadingRooms(true);
       onGetAvailableRooms();
     }
@@ -121,22 +122,30 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     
-    const isEoaValid = validateEoa(eoa);
+    if (!isWalletConnected || !address) {
+      return;
+    }
+    
     const isRoomIdValid = validateRoomId(roomId);
     
-    if (!isEoaValid || !isRoomIdValid) {
+    if (!isRoomIdValid && mode === 'join') {
       return;
     }
     
     if (mode === 'create') {
       // When creating a room, always pass undefined for roomId
-      console.log("Creating a room with EOA:", eoa);
-      onJoinRoom({ eoa, roomId: undefined });
+      console.log("Creating a room with address:", address);
+      onJoinRoom({ eoa: address, roomId: undefined });
     } else {
       // When joining, use the entered roomId
-      console.log("Joining a room with EOA:", eoa, "and roomId:", roomId.trim());
-      onJoinRoom({ eoa, roomId: roomId.trim() });
+      console.log("Joining a room with address:", address, "and roomId:", roomId.trim());
+      onJoinRoom({ eoa: address, roomId: roomId.trim() });
     }
+  };
+
+  // Handle connect wallet button click
+  const handleConnectWallet = async () => {
+    await connectWallet();
   };
 
   return (
@@ -159,188 +168,246 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
         </CardHeader>
 
         <CardContent className="relative z-10">
-          <Tabs defaultValue="create" onValueChange={handleTabChange}>
-            <TabsList className="grid grid-cols-2 p-1 mb-5">
-              <TabsTrigger 
-                value="create" 
-                className="data-[state=active]:bg-cyan-950/50 data-[state=active]:text-cyan-400 data-[state=active]:shadow-[0_0_10px_rgba(0,229,255,0.2)]"
-                disabled={!isConnected}
-              >
-                <GamepadIcon className="w-4 h-4 mr-2" />
-                Create Game
-              </TabsTrigger>
-              <TabsTrigger 
-                value="join" 
-                className="data-[state=active]:bg-fuchsia-950/50 data-[state=active]:text-fuchsia-400 data-[state=active]:shadow-[0_0_10px_rgba(255,73,225,0.2)]"
-                disabled={!isConnected}
-              >
-                <Users className="w-4 h-4 mr-2" />
-                Join Game
-              </TabsTrigger>
-            </TabsList>
-            
-            <form onSubmit={handleSubmit} className="space-y-6 mt-2">
-              {/* Wallet address input */}
-              <div className="space-y-1.5">
-                <label htmlFor="eoa" className="block text-sm font-medium text-gray-300 flex items-center">
-                  <Wallet className="h-4 w-4 mr-1.5 text-gray-500" />
-                  Ethereum Address
-                </label>
-                <Input
-                  id="eoa"
-                  type="text"
-                  value={eoa}
-                  onChange={(e) => setEoa(e.target.value)}
-                  placeholder="0x..."
-                  icon={<Wallet className="h-4 w-4" />}
-                  variant={mode === 'create' ? 'cyan' : 'magenta'}
-                  className={cn(eoaError && "border-red-500 focus-visible:ring-red-500")}
-                  required
-                />
-                {eoaError && (
-                  <p className="mt-1 text-sm text-red-400 flex items-center">
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500 mr-1.5"></span>
-                    {eoaError}
+          {!isMetaMaskInstalled ? (
+            <div className="space-y-6 p-2">
+              <div className="bg-amber-900/20 border border-amber-800/30 rounded-lg p-4 text-amber-300 flex flex-col items-center text-center space-y-4">
+                <AlertCircle className="h-10 w-10 text-amber-400" />
+                <div>
+                  <h3 className="font-medium text-lg mb-2">MetaMask Not Detected</h3>
+                  <p className="text-sm text-amber-200/80 mb-2">
+                    To play Nitro Aura, you need to install the MetaMask browser extension.
                   </p>
-                )}
-              </div>
-              
-              {/* Join tab content */}
-              <TabsContent value="join" className="space-y-5 mt-4 mb-0">
-                {/* Available games list */}
-                <div className="rounded-md bg-fuchsia-950/10 p-4 border border-fuchsia-900/20 shadow-inner space-y-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-fuchsia-400 font-medium flex items-center">
-                      <Users className="h-4 w-4 mr-1.5" />
-                      Available Games
-                    </h3>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 px-2 text-gray-400 hover:text-fuchsia-400"
-                      onClick={handleRefreshRooms}
-                      disabled={!isConnected || loadingRooms}
-                    >
-                      <RefreshCw className={cn(
-                        "h-4 w-4 mr-1",
-                        loadingRooms && "animate-spin"
-                      )} />
-                      Refresh
-                    </Button>
-                  </div>
-                  
-                  {loadingRooms ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="flex flex-col items-center space-y-2">
-                        <Loader2 className="h-6 w-6 text-fuchsia-400 animate-spin" />
-                        <p className="text-sm text-gray-400">Loading available games...</p>
-                      </div>
-                    </div>
-                  ) : availableRooms.length > 0 ? (
-                    <div className="space-y-2">
-                      {availableRooms.map((room) => (
-                        <div 
-                          key={room.roomId}
-                          className="bg-gray-800/50 rounded-md p-3 border border-gray-700/40 hover:border-fuchsia-800/30 group transition-all hover:bg-gray-800/70"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center">
-                                <span className="text-gray-300 font-mono text-sm truncate max-w-[200px]">
-                                  {room.roomId}
-                                </span>
-                              </div>
-                              <div className="flex items-center mt-1 text-xs text-gray-500">
-                                <Clock className="h-3 w-3 mr-1" />
-                                <span>Created {formatTimeAgo(room.createdAt)}</span>
-                              </div>
-                            </div>
-                            <Button
-                              variant="glowMagenta"
-                              size="sm"
-                              className="ml-2 whitespace-nowrap"
-                              disabled={!isConnected || !eoa}
-                              onClick={() => handleJoinAvailableRoom(room.roomId)}
-                            >
-                              Join
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-6 space-y-2 text-gray-400">
-                      <Users className="h-10 w-10 opacity-20" />
-                      <p className="text-sm">No games available</p>
-                      <p className="text-xs opacity-70">Create a new game or try again later</p>
-                    </div>
-                  )}
+                  <a 
+                    href="https://metamask.io/download/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-amber-200 hover:text-amber-100 underline underline-offset-4"
+                  >
+                    Install MetaMask
+                  </a>
                 </div>
-                
-                {/* Manual room ID entry */}
-                <div className="space-y-1.5 pt-2">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="roomId" className="block text-sm font-medium text-gray-300 flex items-center">
-                      <KeyRound className="h-4 w-4 mr-1.5 text-gray-500" />
-                      Room ID
-                    </label>
-                    <p className="text-xs text-gray-500">Or enter room ID manually</p>
-                  </div>
-                  <Input
-                    id="roomId"
-                    type="text"
-                    value={roomId}
-                    onChange={(e) => setRoomId(e.target.value)}
-                    placeholder="Enter the room ID to join"
-                    icon={<KeyRound className="h-4 w-4" />}
-                    variant="magenta"
-                    className={cn(roomIdError && "border-red-500 focus-visible:ring-red-500")}
-                    required
-                  />
-                  {roomIdError && (
-                    <p className="mt-1 text-sm text-red-400 flex items-center">
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500 mr-1.5"></span>
-                      {roomIdError}
+              </div>
+            </div>
+          ) : !isWalletConnected ? (
+            <div className="space-y-6 p-2">
+              <div className="bg-gradient-to-br from-cyan-950/30 to-fuchsia-950/30 border border-gray-700/40 rounded-lg p-8 text-center space-y-6">
+                <Wallet className="h-12 w-12 mx-auto text-cyan-400 opacity-80" />
+                <div>
+                  <h3 className="font-medium text-lg mb-2 bg-gradient-to-r from-cyan-400 to-fuchsia-400 bg-clip-text text-transparent">Connect Your Wallet</h3>
+                  <p className="text-sm text-gray-400 mb-6">
+                    Connect your MetaMask wallet to create or join games.
+                  </p>
+                  <Button
+                    onClick={handleConnectWallet}
+                    variant="glowCyan"
+                    size="xl"
+                    className="w-full"
+                    disabled={isConnecting || !isConnected}
+                  >
+                    {isConnecting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <Wallet className="h-4 w-4 mr-2" />
+                        Connect MetaMask
+                      </>
+                    )}
+                  </Button>
+                  
+                  {metamaskError && (
+                    <p className="mt-4 text-sm text-red-400">{metamaskError}</p>
+                  )}
+                  
+                  {!isConnected && (
+                    <p className="mt-4 text-sm text-amber-400">
+                      <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />
+                      Connecting to game server...
                     </p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1 pl-1">
-                    Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-                  </p>
                 </div>
-              </TabsContent>
+              </div>
+            </div>
+          ) : (
+            <Tabs defaultValue="create" onValueChange={handleTabChange}>
+              <TabsList className="grid grid-cols-2 p-1 mb-5">
+                <TabsTrigger 
+                  value="create" 
+                  className="data-[state=active]:bg-cyan-950/50 data-[state=active]:text-cyan-400 data-[state=active]:shadow-[0_0_10px_rgba(0,229,255,0.2)]"
+                  disabled={!isConnected}
+                >
+                  <GamepadIcon className="w-4 h-4 mr-2" />
+                  Create Game
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="join" 
+                  className="data-[state=active]:bg-fuchsia-950/50 data-[state=active]:text-fuchsia-400 data-[state=active]:shadow-[0_0_10px_rgba(255,73,225,0.2)]"
+                  disabled={!isConnected}
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Join Game
+                </TabsTrigger>
+              </TabsList>
               
-              {/* Create tab content */}
-              <TabsContent value="create" className="space-y-4 mt-4 mb-0">
-                <div className="rounded-md bg-cyan-950/20 p-4 text-sm text-gray-300 border border-cyan-900/30 shadow-inner">
-                  <p className="mb-2 text-cyan-400 font-medium flex items-center">
-                    <GamepadIcon className="h-4 w-4 mr-1.5" />
-                    Host a New Game
-                  </p>
-                  <p className="text-sm opacity-90">You'll create a room and get a Room ID to share with your opponent.</p>
+              <form onSubmit={handleSubmit} className="space-y-6 mt-2">
+                {/* Wallet address display */}
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-medium text-gray-300 flex items-center">
+                    <Wallet className="h-4 w-4 mr-1.5 text-gray-500" />
+                    Connected Wallet
+                  </label>
+                  <div className="flex items-center p-2 bg-gray-900/50 border border-gray-800/50 rounded-md">
+                    <div className="flex-1 font-mono text-sm text-gray-300 truncate px-2">
+                      {address}
+                    </div>
+                    <div className="flex-shrink-0 ml-2">
+                      <div className="flex items-center space-x-1 bg-green-950/50 text-green-400 text-xs py-1 px-2 rounded-full border border-green-900/50">
+                        <span className="h-2 w-2 rounded-full bg-green-500"></span>
+                        <span>Connected</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </TabsContent>
-              
-              {/* Error message */}
-              {error && (
-                <div className="text-sm text-red-400 p-3 bg-red-900/20 border border-red-900/30 rounded-md shadow-inner animate-pulse">
-                  <p className="font-medium mb-1">Error</p>
-                  <p>{error}</p>
-                </div>
-              )}
-              
-              {/* Submit button */}
-              <Button
-                type="submit"
-                disabled={!isConnected}
-                variant={mode === 'create' ? 'glowCyan' : 'glowMagenta'}
-                size="xxl"
-                className="w-full mt-6"
-                leftIcon={!isConnected ? <Loader2 className="animate-spin" /> : undefined}
-              >
-                {!isConnected ? 'Connecting...' : mode === 'create' ? 'Create Game' : 'Join Game'}
-              </Button>
-            </form>
-          </Tabs>
+                
+                {/* Join tab content */}
+                <TabsContent value="join" className="space-y-5 mt-4 mb-0">
+                  {/* Available games list */}
+                  <div className="rounded-md bg-fuchsia-950/10 p-4 border border-fuchsia-900/20 shadow-inner space-y-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-fuchsia-400 font-medium flex items-center">
+                        <Users className="h-4 w-4 mr-1.5" />
+                        Available Games
+                      </h3>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 px-2 text-gray-400 hover:text-fuchsia-400"
+                        onClick={handleRefreshRooms}
+                        disabled={!isConnected || loadingRooms}
+                      >
+                        <RefreshCw className={cn(
+                          "h-4 w-4 mr-1",
+                          loadingRooms && "animate-spin"
+                        )} />
+                        Refresh
+                      </Button>
+                    </div>
+                    
+                    {loadingRooms ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="flex flex-col items-center space-y-2">
+                          <Loader2 className="h-6 w-6 text-fuchsia-400 animate-spin" />
+                          <p className="text-sm text-gray-400">Loading available games...</p>
+                        </div>
+                      </div>
+                    ) : availableRooms.length > 0 ? (
+                      <div className="space-y-2">
+                        {availableRooms.map((room) => (
+                          <div 
+                            key={room.roomId}
+                            className="bg-gray-800/50 rounded-md p-3 border border-gray-700/40 hover:border-fuchsia-800/30 group transition-all hover:bg-gray-800/70"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center">
+                                  <span className="text-gray-300 font-mono text-sm truncate max-w-[200px]">
+                                    {room.roomId}
+                                  </span>
+                                </div>
+                                <div className="flex items-center mt-1 text-xs text-gray-500">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  <span>Created {formatTimeAgo(room.createdAt)}</span>
+                                </div>
+                              </div>
+                              <Button
+                                variant="glowMagenta"
+                                size="sm"
+                                className="ml-2 whitespace-nowrap"
+                                disabled={!isConnected}
+                                onClick={() => handleJoinAvailableRoom(room.roomId)}
+                              >
+                                Join
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-6 space-y-2 text-gray-400">
+                        <Users className="h-10 w-10 opacity-20" />
+                        <p className="text-sm">No games available</p>
+                        <p className="text-xs opacity-70">Create a new game or try again later</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Manual room ID entry */}
+                  <div className="space-y-1.5 pt-2">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="roomId" className="block text-sm font-medium text-gray-300 flex items-center">
+                        <KeyRound className="h-4 w-4 mr-1.5 text-gray-500" />
+                        Room ID
+                      </label>
+                      <p className="text-xs text-gray-500">Or enter room ID manually</p>
+                    </div>
+                    <Input
+                      id="roomId"
+                      type="text"
+                      value={roomId}
+                      onChange={(e) => setRoomId(e.target.value)}
+                      placeholder="Enter the room ID to join"
+                      icon={<KeyRound className="h-4 w-4" />}
+                      variant="magenta"
+                      className={cn(roomIdError && "border-red-500 focus-visible:ring-red-500")}
+                      required
+                    />
+                    {roomIdError && (
+                      <p className="mt-1 text-sm text-red-400 flex items-center">
+                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500 mr-1.5"></span>
+                        {roomIdError}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1 pl-1">
+                      Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+                    </p>
+                  </div>
+                </TabsContent>
+                
+                {/* Create tab content */}
+                <TabsContent value="create" className="space-y-4 mt-4 mb-0">
+                  <div className="rounded-md bg-cyan-950/20 p-4 text-sm text-gray-300 border border-cyan-900/30 shadow-inner">
+                    <p className="mb-2 text-cyan-400 font-medium flex items-center">
+                      <GamepadIcon className="h-4 w-4 mr-1.5" />
+                      Host a New Game
+                    </p>
+                    <p className="text-sm opacity-90">You'll create a room and get a Room ID to share with your opponent.</p>
+                  </div>
+                </TabsContent>
+                
+                {/* Error message */}
+                {error && (
+                  <div className="text-sm text-red-400 p-3 bg-red-900/20 border border-red-900/30 rounded-md shadow-inner animate-pulse">
+                    <p className="font-medium mb-1">Error</p>
+                    <p>{error}</p>
+                  </div>
+                )}
+                
+                {/* Submit button */}
+                <Button
+                  type="submit"
+                  disabled={!isConnected}
+                  variant={mode === 'create' ? 'glowCyan' : 'glowMagenta'}
+                  size="xxl"
+                  className="w-full mt-6"
+                  leftIcon={!isConnected ? <Loader2 className="animate-spin" /> : undefined}
+                >
+                  {!isConnected ? 'Connecting...' : mode === 'create' ? 'Create Game' : 'Join Game'}
+                </Button>
+              </form>
+            </Tabs>
+          )}
         </CardContent>
         
         {/* Card footer with tagline */}

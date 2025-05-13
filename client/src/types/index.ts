@@ -142,3 +142,20 @@ export type WebSocketMessages =
   | AvailableRoomsMessage
   | GetAvailableRoomsMessage
   | ErrorMessage;
+
+// MetaMask Ethereum Provider
+export interface MetaMaskEthereumProvider {
+  isMetaMask?: boolean;
+  request: (request: { method: string; params?: Array<any> }) => Promise<any>;
+  on: (event: string, listener: (...args: any[]) => void) => void;
+  removeListener: (event: string, listener: (...args: any[]) => void) => void;
+  selectedAddress?: string;
+  isConnected?: () => boolean;
+}
+
+// Add type definition for window.ethereum
+declare global {
+  interface Window {
+    ethereum?: MetaMaskEthereumProvider;
+  }
+}
