@@ -8,7 +8,7 @@ import { validateJoinRoomPayload, validateMovePayload } from './validators.js';
 import { formatGameState, formatGameOverMessage, createGame } from './ticTacToe.js';
 
 // Create WebSocket server
-const wss = new WebSocketServer({ port: 8080 });
+const wss = new WebSocketServer({ host: '0.0.0.0', port: 8080 });
 const roomManager = createRoomManager();
 
 // Track active connections
