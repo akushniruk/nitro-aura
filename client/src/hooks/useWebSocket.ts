@@ -82,6 +82,13 @@ export function useWebSocket() {
       payload: { roomId }
     });
   }, [sendMessage]);
+  
+  // Get available rooms
+  const getAvailableRooms = useCallback(() => {
+    sendMessage({
+      type: 'getAvailableRooms'
+    });
+  }, [sendMessage]);
 
   return {
     isConnected,
@@ -89,6 +96,7 @@ export function useWebSocket() {
     lastMessage,
     joinRoom,
     makeMove,
-    startGame
+    startGame,
+    getAvailableRooms
   };
 }

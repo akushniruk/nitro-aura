@@ -45,9 +45,11 @@ export type WebSocketMessageType =
   | 'joinRoom'
   | 'startGame'
   | 'move'
+  | 'getAvailableRooms'
   | 'room:state'
   | 'room:ready'
   | 'room:created'
+  | 'room:available'
   | 'game:started'
   | 'game:over'
   | 'error';
@@ -111,6 +113,22 @@ export interface ErrorMessage extends WebSocketMessage {
   msg: string;
 }
 
+// Available Room type
+export interface AvailableRoom {
+  roomId: string;
+  hostAddress: string;
+  createdAt: number;
+}
+
+export interface AvailableRoomsMessage extends WebSocketMessage {
+  type: 'room:available';
+  rooms: AvailableRoom[];
+}
+
+export interface GetAvailableRoomsMessage extends WebSocketMessage {
+  type: 'getAvailableRooms';
+}
+
 // Union type for all WebSocket messages
 export type WebSocketMessages =
   | JoinRoomMessage
@@ -121,4 +139,6 @@ export type WebSocketMessages =
   | RoomCreatedMessage
   | GameStartedMessage
   | GameOverMessage
+  | AvailableRoomsMessage
+  | GetAvailableRoomsMessage
   | ErrorMessage;

@@ -1,24 +1,47 @@
-import { useState } from 'react';
-import { JoinRoomPayload } from '../types';
+import { useState, useEffect } from 'react';
+import { JoinRoomPayload, AvailableRoom } from '../types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
-import { Wallet, Users, Loader2, KeyRound, GamepadIcon } from 'lucide-react';
+import { Wallet, Users, Loader2, KeyRound, GamepadIcon, RefreshCw, Clock } from 'lucide-react';
 
 interface LobbyProps {
   onJoinRoom: (payload: JoinRoomPayload) => void;
   isConnected: boolean;
   error: string | null;
+  availableRooms?: AvailableRoom[];
+  onGetAvailableRooms: () => void;
 }
 
-export function Lobby({ onJoinRoom, isConnected, error }: LobbyProps) {
+export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onGetAvailableRooms }: LobbyProps) {
   const [eoa, setEoa] = useState('');
   const [roomId, setRoomId] = useState('');
   const [eoaError, setEoaError] = useState('');
   const [roomIdError, setRoomIdError] = useState('');
   const [mode, setMode] = useState<'create' | 'join'>('create');
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  
+  // Fetch available rooms when tab changes to 'join'
+  useEffect(() => {
+    if (mode === 'join' && isConnected) {
+      setLoadingRooms(true);
+      onGetAvailableRooms();
+      // Set a timeout to hide the loading indicator after 2 seconds
+      // (in case the server doesn't respond or takes too long)
+      const timeoutId = setTimeout(() => {
+        setLoadingRooms(false);
+      }, 2000);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [mode, isConnected, onGetAvailableRooms]);
+  
+  // When availableRooms changes, stop the loading indicator
+  useEffect(() => {
+    setLoadingRooms(false);
+  }, [availableRooms]);
 
   // Validate Ethereum address format
   const validateEoa = (address: string): boolean => {
@@ -51,6 +74,47 @@ export function Lobby({ onJoinRoom, isConnected, error }: LobbyProps) {
   const handleTabChange = (value: string) => {
     setMode(value as 'create' | 'join');
     setRoomIdError('');
+    
+    // Fetch available rooms when switching to join tab
+    if (value === 'join' && isConnected) {
+      onGetAvailableRooms();
+    }
+  };
+  
+  // Helper function to format time since creation
+  const formatTimeAgo = (timestamp: number): string => {
+    const now = Date.now();
+    const secondsAgo = Math.floor((now - timestamp) / 1000);
+    
+    if (secondsAgo < 60) {
+      return `${secondsAgo} second${secondsAgo !== 1 ? 's' : ''} ago`;
+    }
+    
+    const minutesAgo = Math.floor(secondsAgo / 60);
+    if (minutesAgo < 60) {
+      return `${minutesAgo} minute${minutesAgo !== 1 ? 's' : ''} ago`;
+    }
+    
+    const hoursAgo = Math.floor(minutesAgo / 60);
+    return `${hoursAgo} hour${hoursAgo !== 1 ? 's' : ''} ago`;
+  };
+  
+  // Handle joining a specific available room
+  const handleJoinAvailableRoom = (selectedRoomId: string) => {
+    if (!validateEoa(eoa)) {
+      return;
+    }
+    
+    console.log("Joining available room with EOA:", eoa, "and roomId:", selectedRoomId);
+    onJoinRoom({ eoa, roomId: selectedRoomId });
+  };
+
+  // Handle manual refresh of available rooms
+  const handleRefreshRooms = () => {
+    if (isConnected) {
+      setLoadingRooms(true);
+      onGetAvailableRooms();
+    }
   };
 
   // Handle form submission
@@ -143,11 +207,85 @@ export function Lobby({ onJoinRoom, isConnected, error }: LobbyProps) {
               
               {/* Join tab content */}
               <TabsContent value="join" className="space-y-5 mt-4 mb-0">
-                <div className="space-y-1.5">
-                  <label htmlFor="roomId" className="block text-sm font-medium text-gray-300 flex items-center">
-                    <KeyRound className="h-4 w-4 mr-1.5 text-gray-500" />
-                    Room ID
-                  </label>
+                {/* Available games list */}
+                <div className="rounded-md bg-fuchsia-950/10 p-4 border border-fuchsia-900/20 shadow-inner space-y-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-fuchsia-400 font-medium flex items-center">
+                      <Users className="h-4 w-4 mr-1.5" />
+                      Available Games
+                    </h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 px-2 text-gray-400 hover:text-fuchsia-400"
+                      onClick={handleRefreshRooms}
+                      disabled={!isConnected || loadingRooms}
+                    >
+                      <RefreshCw className={cn(
+                        "h-4 w-4 mr-1",
+                        loadingRooms && "animate-spin"
+                      )} />
+                      Refresh
+                    </Button>
+                  </div>
+                  
+                  {loadingRooms ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="flex flex-col items-center space-y-2">
+                        <Loader2 className="h-6 w-6 text-fuchsia-400 animate-spin" />
+                        <p className="text-sm text-gray-400">Loading available games...</p>
+                      </div>
+                    </div>
+                  ) : availableRooms.length > 0 ? (
+                    <div className="space-y-2">
+                      {availableRooms.map((room) => (
+                        <div 
+                          key={room.roomId}
+                          className="bg-gray-800/50 rounded-md p-3 border border-gray-700/40 hover:border-fuchsia-800/30 group transition-all hover:bg-gray-800/70"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center">
+                                <span className="text-gray-300 font-mono text-sm truncate max-w-[200px]">
+                                  {room.roomId}
+                                </span>
+                              </div>
+                              <div className="flex items-center mt-1 text-xs text-gray-500">
+                                <Clock className="h-3 w-3 mr-1" />
+                                <span>Created {formatTimeAgo(room.createdAt)}</span>
+                              </div>
+                            </div>
+                            <Button
+                              variant="glowMagenta"
+                              size="sm"
+                              className="ml-2 whitespace-nowrap"
+                              disabled={!isConnected || !eoa}
+                              onClick={() => handleJoinAvailableRoom(room.roomId)}
+                            >
+                              Join
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-6 space-y-2 text-gray-400">
+                      <Users className="h-10 w-10 opacity-20" />
+                      <p className="text-sm">No games available</p>
+                      <p className="text-xs opacity-70">Create a new game or try again later</p>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Manual room ID entry */}
+                <div className="space-y-1.5 pt-2">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="roomId" className="block text-sm font-medium text-gray-300 flex items-center">
+                      <KeyRound className="h-4 w-4 mr-1.5 text-gray-500" />
+                      Room ID
+                    </label>
+                    <p className="text-xs text-gray-500">Or enter room ID manually</p>
+                  </div>
                   <Input
                     id="roomId"
                     type="text"
