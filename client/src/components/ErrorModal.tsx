@@ -20,9 +20,10 @@ export function ErrorModal({ message, onClose }: ErrorModalProps) {
   return (
     <Dialog open={true} modal={true}>
       <DialogContent 
-        className="bg-gray-900/90 border-red-800/30 relative overflow-hidden sm:max-w-md animate-fadeIn"
+        className="bg-gray-900/90 border-red-800/30 relative overflow-hidden animate-fadeIn"
         style={{
           boxShadow: '0 0 30px rgba(255, 0, 0, 0.2), 0 0 15px rgba(255, 73, 225, 0.15), 0 4px 20px rgba(0, 0, 0, 0.4)',
+          maxWidth: '28rem'
         }}
       >
         {/* Error glow effect */}

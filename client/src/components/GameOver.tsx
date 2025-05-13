@@ -42,7 +42,12 @@ export function GameOver({ gameOver, playerSymbol, onPlayAgain }: GameOverProps)
   
   return (
     <Dialog open={true} modal={true}>
-      <DialogContent className="max-w-md w-full border-gray-700 shadow-2xl relative overflow-hidden">
+      <DialogContent 
+        className="max-w-md w-full border-gray-700 shadow-2xl relative overflow-hidden"
+        style={{
+          boxShadow: '0 0 30px rgba(0, 0, 0, 0.4)',
+          maxWidth: '28rem'
+        }}>
         {/* Background gradient */}
         <div className={cn(
           "absolute inset-0 bg-gradient-to-b",
