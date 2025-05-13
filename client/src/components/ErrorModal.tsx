@@ -16,19 +16,13 @@ interface ErrorModalProps {
 }
 
 export function ErrorModal({ message, onClose }: ErrorModalProps) {
-  const [isOpen, setIsOpen] = useState(true);
-  
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open);
-    if (!open) onClose();
-  };
-  
+  // Use a simple implementation without local state to avoid possible state conflicts
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={true} modal={true}>
       <DialogContent 
         className="bg-gray-900/90 border-red-800/30 relative overflow-hidden sm:max-w-md animate-fadeIn"
         style={{
-          boxShadow: '0 0 30px rgba(255, 0, 0, 0.2), 0 0 15px rgba(255, 73, 225, 0.15), 0 4px 20px rgba(0, 0, 0, 0.4)'
+          boxShadow: '0 0 30px rgba(255, 0, 0, 0.2), 0 0 15px rgba(255, 73, 225, 0.15), 0 4px 20px rgba(0, 0, 0, 0.4)',
         }}
       >
         {/* Error glow effect */}
@@ -51,6 +45,7 @@ export function ErrorModal({ message, onClose }: ErrorModalProps) {
           <DialogFooter className="mt-6">
             <Button
               onClick={onClose}
+              type="button"
               variant="destructive"
               size="lg"
               className="w-full sm:w-auto bg-gradient-to-r from-red-600 to-fuchsia-600 hover:from-red-500 hover:to-fuchsia-500 shadow-lg transform transition-transform hover:scale-105 active:scale-95"

@@ -39,7 +39,10 @@ function App() {
 
     useEffect(() => {
         if (wsError || errorMessage) {
+            console.log("Error detected:", wsError || errorMessage);
             setShowError(true);
+        } else {
+            setShowError(false);
         }
     }, [wsError, errorMessage]);
 

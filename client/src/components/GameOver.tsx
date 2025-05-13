@@ -18,7 +18,6 @@ interface GameOverProps {
 }
 
 export function GameOver({ gameOver, playerSymbol, onPlayAgain }: GameOverProps) {
-  const [isOpen, setIsOpen] = useState(true);
   const { winner } = gameOver;
   
   // Determine message and styling based on game outcome
@@ -40,19 +39,9 @@ export function GameOver({ gameOver, playerSymbol, onPlayAgain }: GameOverProps)
     : winner === 'O' 
       ? 'from-fuchsia-900/30 to-gray-900/90' 
       : 'from-gray-800/30 to-gray-900/90';
-
-  const handlePlay = () => {
-    setIsOpen(false);
-    onPlayAgain();
-  };
-  
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open);
-    if (!open) onPlayAgain();
-  };
   
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={true} modal={true}>
       <DialogContent className="max-w-md w-full border-gray-700 shadow-2xl relative overflow-hidden">
         {/* Background gradient */}
         <div className={cn(
@@ -92,7 +81,8 @@ export function GameOver({ gameOver, playerSymbol, onPlayAgain }: GameOverProps)
           
           <DialogFooter className="flex justify-center pb-2 mt-4">
             <Button
-              onClick={handlePlay}
+              onClick={onPlayAgain}
+              type="button"
               variant={winner === 'X' ? 'cyan' : winner === 'O' ? 'magenta' : 'default'}
               size="lg"
               className="px-8"
