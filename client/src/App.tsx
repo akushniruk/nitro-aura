@@ -1,30 +1,161 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
+import { useState, useEffect } from "react";
+import { useWebSocket } from "./hooks/useWebSocket";
+import { useGameState } from "./hooks/useGameState";
+import { Lobby } from "./components/Lobby";
+import { GameScreen } from "./components/GameScreen";
+import { ErrorModal } from "./components/ErrorModal";
+import { BackgroundAnimation } from "./components/BackgroundAnimation";
+import { JoinRoomPayload } from "./types";
 import "./App.css";
 
 function App() {
-    const [count, setCount] = useState(0);
+    // Player's Ethereum address
+    const [eoaAddress, setEoaAddress] = useState<string>("");
+
+    // Game view state
+    const [gameView, setGameView] = useState<"lobby" | "game">("lobby");
+
+    // WebSocket connection
+    const { isConnected, error: wsError, lastMessage, joinRoom, makeMove, startGame } = useWebSocket();
+
+    // Game state
+    const {
+        gameState,
+        gameOver,
+        roomId,
+        errorMessage,
+        isRoomReady,
+        isGameStarted,
+        isHost,
+        playerSymbol,
+        isPlayerTurn,
+        formatShortAddress,
+        getOpponentAddress,
+        resetGame,
+    } = useGameState(lastMessage, eoaAddress);
+
+    // Handle errors
+    const [showError, setShowError] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (wsError || errorMessage) {
+            setShowError(true);
+        }
+    }, [wsError, errorMessage]);
+
+    // Handle joining a room
+    const handleJoinRoom = (payload: JoinRoomPayload) => {
+        setEoaAddress(payload.eoa);
+        
+        // If creating a new room, mark as host
+        if (payload.roomId === undefined) {
+            console.log("Creating new room as host, payload:", payload);
+        } else {
+            console.log("Joining existing room:", payload.roomId, "payload:", payload);
+        }
+
+        // Join room via WebSocket - pass the payload directly
+        console.log("Sending WebSocket joinRoom with payload:", {
+            roomId: payload.roomId,
+            eoa: payload.eoa
+        });
+        
+        joinRoom({
+            roomId: payload.roomId,
+            eoa: payload.eoa,
+        });
+
+        // Switch to game view
+        setGameView("game");
+    };
+
+    // Handle cell click
+    const handleCellClick = (position: number) => {
+        if (!roomId || !isPlayerTurn || gameOver) return;
+
+        makeMove({
+            roomId,
+            pos: position,
+        });
+    };
+
+    // Handle starting the game (host only)
+    const handleStartGame = () => {
+        if (!roomId || !isHost) {
+            console.error("Cannot start game: not host or no room ID");
+            return;
+        }
+        
+        console.log("Starting game as host for room:", roomId);
+        startGame(roomId);
+    };
+
+    // Handle play again
+    const handlePlayAgain = () => {
+        // For now, just reload the page
+        window.location.reload();
+
+        // TODO: Implement proper reset logic when @erc7824/nitrolite is integrated
+    };
+
+    // Handle error close
+    const handleErrorClose = () => {
+        setShowError(false);
+        resetGame();
+        setGameView("lobby");
+    };
 
     return (
-        <>
-            <div>
-                <a href="https://vite.dev" target="_blank">
-                    <img src={viteLogo} className="logo" alt="Vite logo" />
-                </a>
-                <a href="https://react.dev" target="_blank">
-                    <img src={reactLogo} className="logo react" alt="React logo" />
-                </a>
+        <div className="min-h-screen w-full flex flex-col justify-center items-center p-4 relative overflow-hidden">
+            {/* Background particles */}
+            <BackgroundAnimation />
+            
+            {/* Background grid pattern */}
+            <div className="fixed inset-0 bg-grid-pattern opacity-10 z-0"></div>
+            
+            {/* Decorative glow effects */}
+            <div className="fixed top-[-50%] left-[-20%] w-[140%] h-[140%] bg-gradient-radial from-cyan-900/5 to-transparent opacity-30 blur-3xl z-0"></div>
+            <div className="fixed bottom-[-50%] right-[-20%] w-[140%] h-[140%] bg-gradient-radial from-fuchsia-900/5 to-transparent opacity-30 blur-3xl z-0"></div>
+            
+            {/* Only show the app header in game view */}
+            {gameView === "game" && (
+                <div className="absolute top-6 left-0 right-0 flex justify-center pointer-events-none">
+                    <div className="text-center">
+                        <h1 className="text-3xl sm:text-4xl font-bold">
+                            <span className="text-glow-cyan">Nitro</span>
+                            <span className="text-glow-magenta ml-1">Aura</span>
+                        </h1>
+                        <p className="text-gray-400 text-sm mt-1">Light speed, neon bleed.</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Main Content */}
+            <div className="max-w-xl w-full relative z-10">
+                {gameView === "lobby" ? (
+                    <Lobby onJoinRoom={handleJoinRoom} isConnected={isConnected} error={wsError} />
+                ) : (
+                    <GameScreen
+                        gameState={gameState}
+                        playerSymbol={playerSymbol}
+                        isPlayerTurn={isPlayerTurn}
+                        isRoomReady={isRoomReady}
+                        isGameStarted={isGameStarted}
+                        isHost={isHost}
+                        gameOver={gameOver}
+                        playerAddress={eoaAddress}
+                        opponentAddress={getOpponentAddress()}
+                        roomId={roomId}
+                        formatShortAddress={formatShortAddress}
+                        onCellClick={handleCellClick}
+                        onPlayAgain={handlePlayAgain}
+                        onStartGame={handleStartGame}
+                    />
+                )}
+
+                {showError && <ErrorModal message={errorMessage || wsError || "An unknown error occurred"} onClose={handleErrorClose} />}
             </div>
-            <h1 className="text-3xl font-bold underline">Hello world!</h1>
-            <div className="card">
-                <button onClick={() => setCount((count) => count + 1)}>count is {count}</button>
-                <p>
-                    Edit <code>src/App.tsx</code> and save to test HMR
-                </p>
-            </div>
-            <p className="read-the-docs">Click on the Vite and React logos to learn more</p>
-        </>
+        </div>
     );
 }
 
