@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from './ui/button';
 import {
@@ -15,8 +16,15 @@ interface ErrorModalProps {
 }
 
 export function ErrorModal({ message, onClose }: ErrorModalProps) {
+  const [isOpen, setIsOpen] = useState(true);
+  
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) onClose();
+  };
+  
   return (
-    <Dialog open={true} onOpenChange={() => onClose()}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent 
         className="bg-gray-900/90 border-red-800/30 relative overflow-hidden sm:max-w-md animate-fadeIn"
         style={{
