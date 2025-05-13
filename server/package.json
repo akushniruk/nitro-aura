@@ -1,0 +1,22 @@
+{
+  "name": "nitro-aura-server",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "WebSocket server for Nitro Aura Tic Tac Toe game",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "lint": "eslint src/**/*.js"
+  },
+  "dependencies": {
+    "uuid": "^9.0.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
