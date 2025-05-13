@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { JoinRoomPayload, AvailableRoom } from '../types';
+import type { JoinRoomPayload, AvailableRoom } from '../types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Input } from './ui/input';

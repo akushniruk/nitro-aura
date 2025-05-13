@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const inputVariants = cva(
@@ -30,9 +30,10 @@ const inputVariants = cva(
 );
 
 export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement>,
-    VariantProps<typeof inputVariants> {
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   icon?: React.ReactNode;
+  variant?: 'default' | 'cyan' | 'magenta' | 'glass';
+  size?: 'default' | 'sm' | 'lg';
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(

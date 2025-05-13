@@ -1,4 +1,4 @@
-import { PlayerSymbol } from '../types';
+import type { PlayerSymbol } from '../types';
 import { cn } from '../lib/utils';
 import { Badge } from './ui/badge';
 import { UserCheck, User, Clock } from 'lucide-react';
@@ -16,8 +16,6 @@ interface GameStatusProps {
 export function GameStatus({
   isPlayerTurn,
   playerSymbol,
-  isRoomReady,
-  isGameStarted,
   playerAddress,
   opponentAddress,
   formatShortAddress

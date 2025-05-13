@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import { 
+import type { 
   GameState, 
   GameOver, 
-  WebSocketMessages, 
-  PlayerSymbol
+  WebSocketMessages
 } from '../types';
 
 // Initial empty game state

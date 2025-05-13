@@ -5,12 +5,9 @@ import { X } from "lucide-react"
 import { cn } from "../../lib/utils"
 
 // Modified to include proper modal support
-const Dialog = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Root> & { modal?: boolean }
->(({ modal = false, ...props }, ref) => (
+const Dialog = ({ modal = false, ...props }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Root> & { modal?: boolean }) => (
   <DialogPrimitive.Root modal={modal} {...props} />
-))
+)
 Dialog.displayName = "Dialog"
 
 const DialogTrigger = DialogPrimitive.Trigger

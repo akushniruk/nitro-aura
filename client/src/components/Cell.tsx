@@ -1,4 +1,4 @@
-import { PlayerSymbol } from '../types';
+import type { PlayerSymbol } from '../types';
 import { cn } from '../lib/utils';
 
 interface CellProps {

@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { GameOver as GameOverType, PlayerSymbol } from '../types';
+import type { GameOver as GameOverType, PlayerSymbol } from '../types';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
 import { Trophy, Medal, CircleSlash } from 'lucide-react';

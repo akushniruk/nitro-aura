@@ -17,6 +17,7 @@ export function BackgroundAnimation() {
     
     // Set canvas dimensions to match the window
     const resizeCanvas = () => {
+      if (!canvas) return;
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
@@ -29,19 +30,20 @@ export function BackgroundAnimation() {
     const numberOfParticles = Math.min(Math.max(window.innerWidth / 15, 20), 100);
     
     class Particle {
-      x: number;
-      y: number;
-      size: number;
-      speedX: number;
-      speedY: number;
-      color: string;
-      moveAmplitude: number;
-      moveFrequency: number;
-      movePhase: number;
-      age: number;
-      lifespan: number;
+      x = 0;
+      y = 0;
+      size = 0;
+      speedX = 0;
+      speedY = 0;
+      color = '';
+      moveAmplitude = 0;
+      moveFrequency = 0;
+      movePhase = 0;
+      age = 0;
+      lifespan = 0;
       
       constructor() {
+        if (!canvas) return;
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
         this.size = Math.random() * 6 + 1;
@@ -56,6 +58,7 @@ export function BackgroundAnimation() {
       }
       
       update() {
+        if (!canvas || !ctx) return;
         this.age++;
         
         // Oscillating movement
@@ -105,6 +108,7 @@ export function BackgroundAnimation() {
       }
       
       reset() {
+        if (!canvas) return;
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
         this.size = Math.random() * 6 + 1;
@@ -124,6 +128,7 @@ export function BackgroundAnimation() {
     
     // Animation loop
     const animate = () => {
+      if (!canvas || !ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
       // Draw each particle
@@ -137,6 +142,7 @@ export function BackgroundAnimation() {
     
     // Connect particles with faint lines if close enough
     const connectParticles = () => {
+      if (!ctx) return;
       const maxDistance = 120;
       
       for (let a = 0; a < particlesArray.length; a++) {

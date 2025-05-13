@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from './ui/button';
 import {
@@ -8,7 +7,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from './ui/dialog';
-import { cn } from '../lib/utils';
 
 interface ErrorModalProps {
   message: string;

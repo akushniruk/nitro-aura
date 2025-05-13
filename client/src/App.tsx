@@ -5,7 +5,7 @@ import { Lobby } from "./components/Lobby";
 import { GameScreen } from "./components/GameScreen";
 import { ErrorModal } from "./components/ErrorModal";
 import { BackgroundAnimation } from "./components/BackgroundAnimation";
-import { JoinRoomPayload, AvailableRoom, AvailableRoomsMessage } from "./types";
+import type { JoinRoomPayload, AvailableRoom, AvailableRoomsMessage, PlayerSymbol } from "./types";
 import "./App.css";
 
 function App() {
@@ -162,7 +162,7 @@ function App() {
                 ) : (
                     <GameScreen
                         gameState={gameState}
-                        playerSymbol={playerSymbol}
+                        playerSymbol={playerSymbol as PlayerSymbol}
                         isPlayerTurn={isPlayerTurn}
                         isRoomReady={isRoomReady}
                         isGameStarted={isGameStarted}

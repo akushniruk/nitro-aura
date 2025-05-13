@@ -2,7 +2,7 @@ import { Board } from './Board';
 import { GameStatus } from './GameStatus';
 import { GameOver } from './GameOver';
 import { RoomInfo } from './RoomInfo';
-import { GameState, GameOver as GameOverType, PlayerSymbol } from '../types';
+import type { GameState, GameOver as GameOverType, PlayerSymbol } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 

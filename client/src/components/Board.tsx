@@ -1,5 +1,5 @@
 import { Cell } from './Cell';
-import { GameState, PlayerSymbol } from '../types';
+import type { GameState, PlayerSymbol } from '../types';
 import { cn } from '../lib/utils';
 
 interface BoardProps {
@@ -17,9 +17,6 @@ export function Board({
   gameOver, 
   onCellClick 
 }: BoardProps) {
-  const playerColor = playerSymbol === 'X' ? 'cyan' : 'fuchsia';
-  const glowColor = playerColor === 'cyan' ? 'rgba(0,229,255,0.1)' : 'rgba(255,73,225,0.1)';
-
   return (
     <div className="relative w-full max-w-md mx-auto">
       {/* Glow effect based on player */}
