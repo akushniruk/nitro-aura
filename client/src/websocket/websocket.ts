@@ -1,6 +1,6 @@
 import { type Hex } from "viem";
 import { ethers } from "ethers";
-import { createAuthRequestMessage, createAuthVerifyMessage, createPingMessage } from "@erc7824/nitrolite";
+import { createAuthRequestMessage, NitroliteRPC, createAuthVerifyMessage, createPingMessage } from "@erc7824/nitrolite";
 import type { Channel as NitroliteChannel } from "@erc7824/nitrolite";
 
 // ===== Types =====
@@ -226,6 +226,11 @@ export class WebSocketClient {
                         this.ws?.send(authVerify);
                     } else if (response.res && response.res[1] === "auth_verify") {
                         // Authentication successful
+                        const paramsForChannels = [{ participant: this.signer.address }];
+                        const getChannelsMessage = NitroliteRPC.createRequest(10, "get_channels", paramsForChannels);
+                        const getChannelMessage = await NitroliteRPC.signRequestMessage(getChannelsMessage, this.signer.sign);
+                        console.log("getChannelMessage", getChannelMessage);
+                        this.ws?.send(JSON.stringify(getChannelMessage));
                         clearTimeout(authTimeout);
                         this.ws?.removeEventListener("message", handleAuthResponse);
                         resolve();

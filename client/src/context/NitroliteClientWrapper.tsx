@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { createPublicClient, createWalletClient, custom, http, type Hex } from "viem";
+import { NitroliteStore } from "../store";
 import { NitroliteClient, type ContractAddresses } from "@erc7824/nitrolite";
 
 import { ethers } from "ethers";
@@ -73,10 +74,7 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
                     address: wallet.address,
                 },
                 signMessage: async ({ message: { raw } }: { message: { raw: string } }) => {
-                    const messageBytes = typeof raw === "string" && raw.startsWith("0x") ? ethers.getBytes(raw) : raw;
-
-                    // Sign the digest directly
-                    const signature = await wallet.signMessage(messageBytes);
+                    const { serialized: signature } = wallet.signingKey.sign(raw as ethers.BytesLike);
 
                     return signature as Hex;
                 },
@@ -103,7 +101,7 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
                     }));
                     return;
                 }
-                
+
                 // Check if window.ethereum is available
                 if (!(window as any).ethereum) {
                     setClientState((prev) => ({
@@ -127,12 +125,21 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
                 });
 
                 // Use MetaMask provider for the walletClient
+                console.log("Creating wallet client with ethereum provider...");
+                const ethereum = (window as any).ethereum;
+                console.log("Ethereum provider:", ethereum ? "available" : "not available");
+
+                if (!ethereum) {
+                    throw new Error("Ethereum provider not found in window object");
+                }
+
+                // Create the wallet client using the ethereum provider
                 const walletClient = createWalletClient({
-                    // Access the provider's ethereum property which contains the MetaMask provider
-                    transport: custom((window as any).ethereum),
+                    transport: custom(ethereum),
                     chain: polygon,
                     account: address as Hex,
                 });
+                console.log("Wallet client created successfully:", walletClient.account);
 
                 const addresses: ContractAddresses = {
                     custody: APP_CONFIG.CUSTODIES[polygon.id],
@@ -143,6 +150,22 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
 
                 const challengeDuration = APP_CONFIG.CHANNEL.CHALLENGE_PERIOD;
 
+                console.log("Creating Nitrolite client with params:", {
+                    publicClientAvailable: !!publicClient,
+                    walletClientAvailable: !!walletClient,
+                    stateWalletClientAvailable: !!stateWalletClient,
+                    account: walletClient.account,
+                    chainId: polygon.id,
+                    challengeDuration: challengeDuration.toString(),
+                    addresses: {
+                        custody: addresses.custody,
+                        adjudicator: addresses.adjudicator,
+                        guestAddress: addresses.guestAddress,
+                        tokenAddress: addresses.tokenAddress,
+                    },
+                });
+
+                // Create the Nitrolite client
                 const client = new NitroliteClient({
                     publicClient,
                     walletClient,
@@ -154,7 +177,15 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
                     addresses,
                 });
 
+                // Check if client was created successfully
+                if (!client) {
+                    throw new Error("Nitrolite client creation failed - client is null");
+                }
+
                 console.log("Nitrolite client initialized successfully!");
+
+                // Store the client in the global store for access elsewhere
+                NitroliteStore.setClient(client);
 
                 setClientState({
                     client,
@@ -163,10 +194,10 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
                 });
             } catch (error: unknown) {
                 console.error("Failed to initialize Nitrolite client:", error);
-                
+
                 // Provide more specific error messages based on the error
                 let errorMessage = "Failed to initialize Nitrolite client";
-                
+
                 if (error instanceof Error) {
                     if (error.message.includes("provider")) {
                         errorMessage = "MetaMask provider error. Please refresh the page and try again.";
@@ -176,7 +207,7 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
                         // Include the actual error message for debugging
                         errorMessage = `Nitrolite client error: ${error.message}`;
                     }
-                    
+
                     // Log additional details for debugging
                     console.debug("Error details:", {
                         message: error.message,
@@ -185,7 +216,7 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
                         address: address || "not available",
                     });
                 }
-                
+
                 setClientState({
                     client: null,
                     loading: false,

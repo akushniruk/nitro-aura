@@ -21,10 +21,22 @@ function App() {
     // WebSocket connection
     const { isConnected, error: wsError, lastMessage, joinRoom, makeMove, startGame, getAvailableRooms } = useWebSocket();
     useWebSocketNitrolite();
-    useNitrolite();
+    const { client, loading: nitroliteLoading, error: nitroliteError } = useNitrolite();
+    
+    // Initialize the Nitrolite integration
+    const { initializeNitroliteClient } = useNitroliteIntegration();
+    
+    // When the Nitrolite client is available, initialize it
+    useEffect(() => {
+        if (client && !nitroliteLoading && !nitroliteError) {
+            console.log("Initializing Nitrolite client in App component");
+            initializeNitroliteClient(client);
+        } else if (nitroliteError) {
+            console.error("Nitrolite client error:", nitroliteError);
+        }
+    }, [client, nitroliteLoading, nitroliteError, initializeNitroliteClient]);
 
-    // Initialize Nitrolite integration
-    const nitroliteIntegration = useNitroliteIntegration();
+    // Removed this reference as we're now using destructuring above
 
     // Available rooms state
     const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([]);
@@ -47,15 +59,21 @@ function App() {
 
     // Handle errors
     const [showError, setShowError] = useState<boolean>(false);
+    const [errorDisplay, setErrorDisplay] = useState<string | null>(null);
 
     useEffect(() => {
-        if (wsError || errorMessage) {
-            console.log("Error detected:", wsError || errorMessage);
+        // Combine all possible error sources
+        const combinedError = wsError || errorMessage || nitroliteError;
+        
+        if (combinedError) {
+            console.log("Error detected:", combinedError);
             setShowError(true);
+            setErrorDisplay(combinedError);
         } else {
             setShowError(false);
+            setErrorDisplay(null);
         }
-    }, [wsError, errorMessage]);
+    }, [wsError, errorMessage, nitroliteError]);
 
     // Process available rooms from websocket messages
     useEffect(() => {
@@ -180,7 +198,7 @@ function App() {
                     />
                 )}
 
-                {showError && <ErrorModal message={errorMessage || wsError || "An unknown error occurred"} onClose={handleErrorClose} />}
+                {showError && <ErrorModal message={errorDisplay || "An unknown error occurred"} onClose={handleErrorClose} />}
             </div>
         </div>
     );

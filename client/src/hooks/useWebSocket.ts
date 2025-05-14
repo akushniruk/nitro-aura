@@ -9,7 +9,7 @@ export function useWebSocket() {
     const [lastMessage, setLastMessage] = useState<WebSocketMessages | null>(null);
 
     // WebSocket server URL (use environment variable if available)
-    const wsUrl = import.meta.env.VITE_WS_URL || "wss://nitro-aura.onrender.com";
+    const wsUrl = import.meta.env.VITE_WS_URL || "ws://localhost:8080";
 
     // Initialize WebSocket connection
     useEffect(() => {
