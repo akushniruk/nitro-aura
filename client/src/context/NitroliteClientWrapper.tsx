@@ -103,6 +103,16 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
                     }));
                     return;
                 }
+                
+                // Check if window.ethereum is available
+                if (!(window as any).ethereum) {
+                    setClientState((prev) => ({
+                        ...prev,
+                        loading: false,
+                        error: "MetaMask provider not found. Please refresh the page or reinstall MetaMask.",
+                    }));
+                    return;
+                }
 
                 const keyInitResult = await initializeKeys();
 
@@ -118,8 +128,8 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
 
                 // Use MetaMask provider for the walletClient
                 const walletClient = createWalletClient({
-                    // @ts-ignore
-                    transport: custom(provider.provider),
+                    // Access the provider's ethereum property which contains the MetaMask provider
+                    transport: custom((window as any).ethereum),
                     chain: polygon,
                     account: address as Hex,
                 });
@@ -153,10 +163,33 @@ export function NitroliteClientWrapper({ children }: NitroliteClientWrapperProps
                 });
             } catch (error: unknown) {
                 console.error("Failed to initialize Nitrolite client:", error);
+                
+                // Provide more specific error messages based on the error
+                let errorMessage = "Failed to initialize Nitrolite client";
+                
+                if (error instanceof Error) {
+                    if (error.message.includes("provider")) {
+                        errorMessage = "MetaMask provider error. Please refresh the page and try again.";
+                    } else if (error.message.includes("wallet")) {
+                        errorMessage = "Wallet client creation failed. Please ensure MetaMask is connected properly.";
+                    } else {
+                        // Include the actual error message for debugging
+                        errorMessage = `Nitrolite client error: ${error.message}`;
+                    }
+                    
+                    // Log additional details for debugging
+                    console.debug("Error details:", {
+                        message: error.message,
+                        stack: error.stack,
+                        provider: provider ? "available" : "not available",
+                        address: address || "not available",
+                    });
+                }
+                
                 setClientState({
                     client: null,
                     loading: false,
-                    error: "Failed to initialize Nitrolite client",
+                    error: errorMessage,
                 });
             }
         };
