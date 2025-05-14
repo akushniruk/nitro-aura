@@ -34,7 +34,8 @@ export function ChannelRequiredModal({
   mode,
   roomId 
 }: ChannelRequiredModalProps) {
-  const [amount, setAmount] = useState('10');
+  const [amount, setAmount] = useState('1');
+  const [amountError, setAmountError] = useState<string | null>(null);
   const [step, setStep] = useState<'info' | 'create' | 'success'>('info');
   const { createChannel, isLoading, error, isChannelOpen } = useChannel();
 
@@ -48,9 +49,25 @@ export function ChannelRequiredModal({
   }, [isChannelOpen, isOpen, onSuccess, onClose, mode, roomId]);
 
   const handleCreateChannel = async () => {
-    if (!amount || parseFloat(amount) <= 0) {
+    // Validate amount
+    if (!amount) {
+      setAmountError('Please enter an amount');
       return;
     }
+    
+    const amountNum = parseFloat(amount);
+    if (isNaN(amountNum)) {
+      setAmountError('Please enter a valid number');
+      return;
+    }
+    
+    if (amountNum <= 0) {
+      setAmountError('Amount must be greater than 0');
+      return;
+    }
+    
+    // Clear any previous errors
+    setAmountError(null);
 
     try {
       setStep('create');
@@ -69,14 +86,19 @@ export function ChannelRequiredModal({
   };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Clear error when user starts typing
+    if (amountError) {
+      setAmountError(null);
+    }
+    
     // Only allow numbers and decimals
     const value = e.target.value.replace(/[^0-9.]/g, '');
     // Prevent multiple decimal points
     const decimalCount = value.split('.').length - 1;
     if (decimalCount > 1) return;
-    // Limit to 2 decimal places
+    // Limit to 6 decimal places for tokens with high precision
     const parts = value.split('.');
-    if (parts.length > 1 && parts[1].length > 2) return;
+    if (parts.length > 1 && parts[1].length > 6) return;
     
     setAmount(value);
   };
@@ -142,13 +164,19 @@ export function ChannelRequiredModal({
                     type="text"
                     value={amount}
                     onChange={handleAmountChange}
-                    placeholder="10"
+                    placeholder="1"
                     prefix="$"
                     variant="cyan"
                   />
-                  <p className="text-xs text-gray-500">
-                    Recommended minimum: 10 USDC
-                  </p>
+                  {amountError ? (
+                    <p className="text-xs text-red-400 mt-1">
+                      {amountError}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">
+                      Enter any amount greater than 0 USDC
+                    </p>
+                  )}
                 </div>
                 
                 {error && (
@@ -207,7 +235,7 @@ export function ChannelRequiredModal({
                   onClick={handleCreateChannel}
                   variant="glowCyan"
                   className="w-full sm:w-auto"
-                  disabled={isLoading || !amount}
+                  disabled={isLoading || !amount || parseFloat(amount) <= 0 || !!amountError}
                 >
                   {isLoading ? (
                     <>
