@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useGameState } from "./hooks/useGameState";
-import { Lobby } from "./components/Lobby";
 import { GameScreen } from "./components/GameScreen";
 import { ErrorModal } from "./components/ErrorModal";
 import { BackgroundAnimation } from "./components/BackgroundAnimation";
+import { GameLobbyIntegrated } from "./components/GameLobbyIntegrated";
 import type { JoinRoomPayload, AvailableRoom, AvailableRoomsMessage, PlayerSymbol } from "./types";
 import "./App.css";
+import { useWebSocketNitrolite } from "./hooks/useWebSocketNitrolite";
+import { useNitroliteIntegration } from "./hooks/useNitroliteIntegration";
+import { useNitrolite } from "./context/NitroliteClientWrapper";
 
 function App() {
     // Player's Ethereum address - now managed by useMetaMask hook in Lobby
@@ -17,7 +20,12 @@ function App() {
 
     // WebSocket connection
     const { isConnected, error: wsError, lastMessage, joinRoom, makeMove, startGame, getAvailableRooms } = useWebSocket();
-    
+    useWebSocketNitrolite();
+    useNitrolite();
+
+    // Initialize Nitrolite integration
+    const nitroliteIntegration = useNitroliteIntegration();
+
     // Available rooms state
     const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([]);
 
@@ -48,15 +56,15 @@ function App() {
             setShowError(false);
         }
     }, [wsError, errorMessage]);
-    
+
     // Process available rooms from websocket messages
     useEffect(() => {
-        if (lastMessage && lastMessage.type === 'room:available') {
+        if (lastMessage && lastMessage.type === "room:available") {
             const roomsMessage = lastMessage as AvailableRoomsMessage;
             setAvailableRooms(roomsMessage.rooms);
         }
     }, [lastMessage]);
-    
+
     // Handle fetching available rooms
     const handleGetAvailableRooms = useCallback(() => {
         getAvailableRooms();
@@ -65,7 +73,7 @@ function App() {
     // Handle joining a room
     const handleJoinRoom = (payload: JoinRoomPayload) => {
         setEoaAddress(payload.eoa);
-        
+
         // If creating a new room, mark as host
         if (payload.roomId === undefined) {
             console.log("Creating new room as host, payload:", payload);
@@ -76,9 +84,9 @@ function App() {
         // Join room via WebSocket - pass the payload directly
         console.log("Sending WebSocket joinRoom with payload:", {
             roomId: payload.roomId,
-            eoa: payload.eoa
+            eoa: payload.eoa,
         });
-        
+
         joinRoom({
             roomId: payload.roomId,
             eoa: payload.eoa,
@@ -104,7 +112,7 @@ function App() {
             console.error("Cannot start game: not host or no room ID");
             return;
         }
-        
+
         console.log("Starting game as host for room:", roomId);
         startGame(roomId);
     };
@@ -128,14 +136,14 @@ function App() {
         <div className="min-h-screen w-full flex flex-col justify-center items-center p-4 relative overflow-hidden">
             {/* Background particles */}
             <BackgroundAnimation />
-            
+
             {/* Background grid pattern */}
             <div className="fixed inset-0 bg-grid-pattern opacity-10 z-0"></div>
-            
+
             {/* Decorative glow effects */}
             <div className="fixed top-[-50%] left-[-20%] w-[140%] h-[140%] bg-gradient-radial from-cyan-900/5 to-transparent opacity-30 blur-3xl z-0"></div>
             <div className="fixed bottom-[-50%] right-[-20%] w-[140%] h-[140%] bg-gradient-radial from-fuchsia-900/5 to-transparent opacity-30 blur-3xl z-0"></div>
-            
+
             {/* Only show the app header in game view */}
             {gameView === "game" && (
                 <div className="absolute top-6 left-0 right-0 flex justify-center pointer-events-none">
@@ -152,13 +160,7 @@ function App() {
             {/* Main Content */}
             <div className="max-w-xl w-full relative z-10">
                 {gameView === "lobby" ? (
-                    <Lobby 
-                        onJoinRoom={handleJoinRoom}
-                        isConnected={isConnected}
-                        error={wsError}
-                        availableRooms={availableRooms}
-                        onGetAvailableRooms={handleGetAvailableRooms}
-                    />
+                    <GameLobbyIntegrated onJoinRoom={handleJoinRoom} availableRooms={availableRooms} onGetAvailableRooms={handleGetAvailableRooms} />
                 ) : (
                     <GameScreen
                         gameState={gameState}
