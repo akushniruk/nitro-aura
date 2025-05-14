@@ -119,6 +119,40 @@ export default {
           },
           "100%": { boxShadow: "0 0 10px rgba(255, 73, 225, 0.5)" },
         },
+        "explode-cyan": {
+          "0%": { 
+            transform: "scale(0.3)",
+            opacity: 1,
+            filter: "blur(2px)"
+          },
+          "80%": {
+            opacity: 0.7
+          },
+          "100%": { 
+            transform: "scale(3)", 
+            opacity: 0,
+            filter: "blur(1px)"
+          },
+        },
+        "explode-magenta": {
+          "0%": { 
+            transform: "scale(0.3)",
+            opacity: 1,
+            filter: "blur(2px)"
+          },
+          "80%": {
+            opacity: 0.7
+          },
+          "100%": { 
+            transform: "scale(3)", 
+            opacity: 0,
+            filter: "blur(1px)"
+          },
+        },
+        "orbit": {
+          "0%": { transform: "rotate(0deg) translateX(10px) rotate(0deg)" },
+          "100%": { transform: "rotate(360deg) translateX(10px) rotate(-360deg)" },
+        },
         fadeIn: {
           "0%": { opacity: 0 },
           "100%": { opacity: 1 },
@@ -143,6 +177,10 @@ export default {
         "float": "float 6s infinite ease-in-out",
         "pulse-cyan": "pulse-cyan 2s infinite ease-in-out",
         "pulse-magenta": "pulse-magenta 2s infinite ease-in-out",
+        "explode-cyan": "explode-cyan 1.5s ease-out forwards",
+        "explode-magenta": "explode-magenta 1.5s ease-out forwards",
+        "orbit": "orbit 3s infinite linear",
+        "orbit-reverse": "orbit 3s infinite linear reverse",
         "fadeIn": "fadeIn 0.3s ease-in-out",
         "fadeInUp": "fadeInUp 0.5s ease-out",
       },

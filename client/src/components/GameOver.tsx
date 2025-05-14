@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import type { GameOver as GameOverType, PlayerSymbol } from '../types';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
 import { Trophy, Medal, CircleSlash } from 'lucide-react';
+import { useSoundEffects } from '../hooks/useSoundEffects';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +20,18 @@ interface GameOverProps {
 
 export function GameOver({ gameOver, playerSymbol, onPlayAgain }: GameOverProps) {
   const { winner } = gameOver;
+  const { playSound } = useSoundEffects();
+  
+  // Play appropriate sound effect when component mounts
+  useEffect(() => {
+    if (winner === playerSymbol) {
+      playSound('win', 0.5);
+    } else if (winner) {
+      playSound('game-over', 0.5);
+    } else {
+      playSound('draw', 0.5);
+    }
+  }, [winner, playerSymbol, playSound]);
   
   // Determine message and styling based on game outcome
   const getMessage = () => {

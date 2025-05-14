@@ -1,5 +1,9 @@
+import { useState, useEffect } from 'react';
 import type { PlayerSymbol } from '../types';
 import { cn } from '../lib/utils';
+import { CellAuraEffect } from './CellAuraEffect';
+import { CellMarkEffect } from './CellMarkEffect';
+import { useSoundEffects } from '../hooks/useSoundEffects';
 
 interface CellProps {
   value: PlayerSymbol | null;
@@ -12,9 +16,41 @@ interface CellProps {
 export function Cell({ value, position, isPlayerTurn, onClick, gameOver }: CellProps) {
   // Determine if cell is clickable
   const isClickable = !value && isPlayerTurn && !gameOver;
+  
+  // Track when a symbol is placed for animation purposes
+  const [activated, setActivated] = useState(false);
+  const [prevValue, setPrevValue] = useState<PlayerSymbol | null>(null);
+  
+  // Sound effects
+  const { playSound } = useSoundEffects();
+  
+  // Detect when a new symbol is placed
+  useEffect(() => {
+    if (value && value !== prevValue) {
+      setActivated(true);
+      setPrevValue(value);
+      
+      // Play sound effect based on the symbol
+      playSound(value === 'X' ? 'mark-x' : 'mark-o', 0.4);
+      
+      // Dispatch custom event for background particles to react
+      const rect = document.getElementById(`cell-${position}`)?.getBoundingClientRect();
+      if (rect) {
+        const cellMarkedEvent = new CustomEvent('cellMarked', {
+          detail: {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+            isX: value === 'X'
+          }
+        });
+        window.dispatchEvent(cellMarkedEvent);
+      }
+    }
+  }, [value, prevValue, position]);
 
   return (
     <div 
+      id={`cell-${position}`}
       className={cn(
         // Base styles for all cells
         "flex items-center justify-center", 
@@ -38,7 +74,7 @@ export function Cell({ value, position, isPlayerTurn, onClick, gameOver }: CellP
       aria-disabled={!isClickable}
       tabIndex={isClickable ? 0 : -1}
     >
-      {/* Aura effect - only appears when cell has a value */}
+      {/* Enhanced aura effects - only appears when cell has a value */}
       {value && (
         <>
           {/* Inner glow */}
@@ -53,7 +89,7 @@ export function Cell({ value, position, isPlayerTurn, onClick, gameOver }: CellP
             value === 'X' ? "bg-cyan-500" : "bg-fuchsia-500"
           )}></div>
           
-          {/* Particle effect */}
+          {/* Static particle effect (background) */}
           <div className="absolute inset-0 opacity-20 overflow-hidden rounded-lg">
             <div className={cn(
               "absolute w-[200%] h-[200%] top-[-50%] left-[-50%]",
@@ -68,6 +104,12 @@ export function Cell({ value, position, isPlayerTurn, onClick, gameOver }: CellP
             "absolute inset-0 rounded-lg z-0 animate-[pulse_2s_ease-in-out_infinite]",
             value === 'X' ? "bg-cyan-500/5" : "bg-fuchsia-500/5"
           )}></div>
+          
+          {/* Dynamic canvas-based particle effect */}
+          <CellAuraEffect value={value} activated={activated} />
+          
+          {/* Dramatic mark effect when cell is activated */}
+          <CellMarkEffect value={value} activated={activated} />
         </>
       )}
       

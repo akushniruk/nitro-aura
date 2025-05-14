@@ -7,6 +7,8 @@ import { Button } from './ui/button';
 import { cn } from '../lib/utils';
 import { Wallet, Users, Loader2, KeyRound, GamepadIcon, RefreshCw, Clock, AlertCircle } from 'lucide-react';
 import { useMetaMask } from '../hooks/useMetaMask';
+import { useChannel } from '../hooks/useChannel';
+import { ChannelRequiredModal } from './ChannelRequiredModal';
 
 interface LobbyProps {
   onJoinRoom: (payload: JoinRoomPayload) => void;
@@ -21,6 +23,11 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
   const [roomIdError, setRoomIdError] = useState('');
   const [mode, setMode] = useState<'create' | 'join'>('create');
   const [loadingRooms, setLoadingRooms] = useState(false);
+  const [showChannelModal, setShowChannelModal] = useState(false);
+  const [pendingRoomAction, setPendingRoomAction] = useState<{mode: 'create' | 'join', roomId?: string} | null>(null);
+  
+  // Use channel hook to check if channel exists
+  const { isChannelOpen } = useChannel();
   
   // Use MetaMask hook for wallet connection
   const { 
@@ -106,6 +113,13 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
       return;
     }
     
+    // Check if channel exists first
+    if (!isChannelOpen) {
+      setPendingRoomAction({ mode: 'join', roomId: selectedRoomId });
+      setShowChannelModal(true);
+      return;
+    }
+    
     console.log("Joining available room with address:", address, "and roomId:", selectedRoomId);
     onJoinRoom({ eoa: address, roomId: selectedRoomId });
   };
@@ -132,6 +146,17 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
       return;
     }
     
+    // Check if channel exists first
+    if (!isChannelOpen) {
+      if (mode === 'create') {
+        setPendingRoomAction({ mode: 'create' });
+      } else {
+        setPendingRoomAction({ mode: 'join', roomId: roomId.trim() });
+      }
+      setShowChannelModal(true);
+      return;
+    }
+    
     if (mode === 'create') {
       // When creating a room, always pass undefined for roomId
       console.log("Creating a room with address:", address);
@@ -142,6 +167,19 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
       onJoinRoom({ eoa: address, roomId: roomId.trim() });
     }
   };
+  
+  // Handle successful channel creation
+  const handleChannelSuccess = (action: 'join' | 'create', roomIdParam?: string) => {
+    if (!address) return;
+    
+    if (action === 'create') {
+      console.log("Creating a room with address after channel creation:", address);
+      onJoinRoom({ eoa: address, roomId: undefined });
+    } else {
+      console.log("Joining a room with address after channel creation:", address, "and roomId:", roomIdParam);
+      onJoinRoom({ eoa: address, roomId: roomIdParam });
+    }
+  };
 
   // Handle connect wallet button click
   const handleConnectWallet = async () => {
@@ -150,6 +188,14 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
 
   return (
     <div className="flex flex-col items-center relative">
+      {/* Channel creation modal */}
+      <ChannelRequiredModal
+        isOpen={showChannelModal}
+        onClose={() => setShowChannelModal(false)}
+        onSuccess={handleChannelSuccess}
+        mode={pendingRoomAction?.mode || 'create'}
+        roomId={pendingRoomAction?.roomId}
+      />
       {/* Animated glow behind card */}
       <div className="absolute -inset-8 bg-gradient-to-br from-cyan-500/5 via-transparent to-fuchsia-500/5 rounded-full blur-2xl"></div>
       

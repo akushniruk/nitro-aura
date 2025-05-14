@@ -70,3 +70,25 @@
   50% { box-shadow: 0 0 20px rgba(255, 73, 225, 0.7), 0 0 30px rgba(255, 73, 225, 0.3); }
   100% { box-shadow: 0 0 10px rgba(255, 73, 225, 0.5); }
 }
+
+/* Line growth animation */
+@keyframes lineGrow {
+  0% {
+    width: 0;
+    opacity: 0.8;
+  }
+  100% {
+    width: 50px;
+    opacity: 0;
+  }
+}
+
+/* Fade out animation */
+@keyframes fadeOut {
+  0% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+  }
+}

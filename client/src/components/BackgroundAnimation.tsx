@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react';
 
 const COLORS = {
   CYAN: 'rgba(0, 229, 255, 0.05)',
-  MAGENTA: 'rgba(255, 73, 225, 0.05)'
+  MAGENTA: 'rgba(255, 73, 225, 0.05)',
+  CYAN_BRIGHT: 'rgba(0, 229, 255, 0.15)',
+  MAGENTA_BRIGHT: 'rgba(255, 73, 225, 0.15)'
 };
 
 export function BackgroundAnimation() {
@@ -27,7 +29,18 @@ export function BackgroundAnimation() {
     
     // Create particles
     const particlesArray: Particle[] = [];
-    const numberOfParticles = Math.min(Math.max(window.innerWidth / 15, 20), 100);
+    const numberOfParticles = Math.min(Math.max(window.innerWidth / 15, 20), 120); // Increased particle count
+    
+    // Track mouse position for interactive effects
+    let mouseX = 0;
+    let mouseY = 0;
+    
+    const updateMousePosition = (e: MouseEvent) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    };
+    
+    window.addEventListener('mousemove', updateMousePosition);
     
     class Particle {
       x = 0;
@@ -60,6 +73,27 @@ export function BackgroundAnimation() {
       update() {
         if (!canvas || !ctx) return;
         this.age++;
+        
+        // Calculate distance to mouse for interactive effects
+        const dx = this.x - mouseX;
+        const dy = this.y - mouseY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const mouseInfluenceRadius = 150;
+        
+        // Apply mouse influence if within radius
+        if (distance < mouseInfluenceRadius) {
+          // Particles move away from mouse cursor
+          const repelFactor = (1 - distance / mouseInfluenceRadius) * 0.3;
+          this.x += (dx / distance) * repelFactor;
+          this.y += (dy / distance) * repelFactor;
+          
+          // Particles near mouse are brighter
+          this.color = this.color === COLORS.CYAN ? COLORS.CYAN_BRIGHT : COLORS.MAGENTA_BRIGHT;
+        } else {
+          // Restore original color when away from mouse
+          this.color = this.color === COLORS.CYAN_BRIGHT ? COLORS.CYAN : 
+                       this.color === COLORS.MAGENTA_BRIGHT ? COLORS.MAGENTA : this.color;
+        }
         
         // Oscillating movement
         this.x += this.speedX + Math.sin(this.age * this.moveFrequency + this.movePhase) * this.moveAmplitude;
@@ -181,9 +215,39 @@ export function BackgroundAnimation() {
     // Start animation
     animate();
     
+    // Add a method to create a burst of particles
+    const createParticleBurst = (x: number, y: number, color: string, count = 10) => {
+      for (let i = 0; i < count; i++) {
+        const particle = new Particle();
+        particle.x = x;
+        particle.y = y;
+        particle.color = color;
+        particle.size = Math.random() * 4 + 1;
+        particle.speedX = (Math.random() - 0.5) * 3;
+        particle.speedY = (Math.random() - 0.5) * 3;
+        particle.lifespan = 150 + Math.random() * 100;
+        particlesArray.push(particle);
+      }
+    };
+    
+    // Listen for custom events from cell marks
+    const handleCellMarked = (e: CustomEvent) => {
+      const { x, y, isX } = e.detail;
+      createParticleBurst(
+        x, 
+        y, 
+        isX ? COLORS.CYAN_BRIGHT : COLORS.MAGENTA_BRIGHT,
+        15
+      );
+    };
+    
+    window.addEventListener('cellMarked', handleCellMarked as EventListener);
+    
     // Cleanup on component unmount
     return () => {
       window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('mousemove', updateMousePosition);
+      window.removeEventListener('cellMarked', handleCellMarked as EventListener);
     };
   }, []);
   

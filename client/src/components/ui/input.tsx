@@ -30,14 +30,15 @@ const inputVariants = cva(
 );
 
 export interface InputProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size' | 'prefix'> {
   icon?: React.ReactNode;
+  prefix?: string;
   variant?: 'default' | 'cyan' | 'magenta' | 'glass';
   size?: 'default' | 'sm' | 'lg';
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, variant, size, icon, ...props }, ref) => {
+  ({ className, type, variant, size, icon, prefix, ...props }, ref) => {
     return (
       <div className="relative">
         {icon && (
@@ -45,11 +46,17 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {icon}
           </div>
         )}
+        {prefix && (
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 font-medium">
+            {prefix}
+          </div>
+        )}
         <input
           type={type}
           className={cn(
             inputVariants({ variant, size }),
             icon && "pl-10",
+            prefix && "pl-7",
             className
           )}
           ref={ref}
