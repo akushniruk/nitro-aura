@@ -3,7 +3,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { createGame, makeMove, formatGameState, formatGameOverMessage } from './ticTacToe.js';
+import { makeMove } from './ticTacToe.js';
 
 /**
  * @typedef {Object} Room
@@ -28,7 +28,6 @@ import { createGame, makeMove, formatGameState, formatGameOverMessage } from './
  */
 export function createRoomManager() {
   // In-memory storage for rooms and address-to-room mapping
-  // TODO: Replace with @erc7824/nitrolite storage when available
   const rooms = new Map();
   const addressToRoom = new Map();
 
