@@ -27,7 +27,7 @@ wss.on('connection', (ws) => {
   logger.ws('Client connected');
   
   // Handle client messages
-  ws.on('message', (message) => {
+  ws.on('message', async (message) => {
     let data;
     try {
       data = JSON.parse(message);
@@ -36,21 +36,26 @@ wss.on('connection', (ws) => {
     }
 
     // Process message based on type
-    switch (data.type) {
-      case 'joinRoom':
-        handleJoinRoom(ws, data.payload, context);
-        break;
-      case 'startGame':
-        handleStartGame(ws, data.payload, context);
-        break;
-      case 'move':
-        handleMove(ws, data.payload, context);
-        break;
-      case 'getAvailableRooms':
-        handleGetAvailableRooms(ws, context);
-        break;
-      default:
-        sendError(ws, 'INVALID_MESSAGE_TYPE', 'Invalid message type');
+    try {
+      switch (data.type) {
+        case 'joinRoom':
+          await handleJoinRoom(ws, data.payload, context);
+          break;
+        case 'startGame':
+          await handleStartGame(ws, data.payload, context);
+          break;
+        case 'move':
+          await handleMove(ws, data.payload, context);
+          break;
+        case 'getAvailableRooms':
+          await handleGetAvailableRooms(ws, context);
+          break;
+        default:
+          sendError(ws, 'INVALID_MESSAGE_TYPE', 'Invalid message type');
+      }
+    } catch (error) {
+      logger.error(`Error handling message type ${data.type}:`, error);
+      sendError(ws, 'INTERNAL_ERROR', 'An internal error occurred');
     }
   });
 

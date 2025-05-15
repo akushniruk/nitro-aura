@@ -17,6 +17,15 @@ export {
   createChannel
 } from './nitroliteOnChain.js';
 
+// App sessions for game rooms
+export {
+  createAppSession,
+  closeAppSession,
+  getAppSession,
+  hasAppSession,
+  getAllAppSessions
+} from './appSessions.js';
+
 // Room management
 export { createRoomManager } from './roomManager.js';
 

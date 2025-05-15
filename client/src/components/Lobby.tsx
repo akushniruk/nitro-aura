@@ -107,6 +107,29 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
     return `${hoursAgo} hour${hoursAgo !== 1 ? 's' : ''} ago`;
   };
   
+  // Helper function to get the Nitrolite address from localStorage
+  const getNitroliteAddress = (): string => {
+    if (!address) return '';
+    
+    // Try to get the address from localStorage
+    const savedKeys = localStorage.getItem('crypto_keypair');
+    let gameAddress = address; // Fallback to MetaMask address
+    
+    if (savedKeys) {
+      try {
+        const parsed = JSON.parse(savedKeys);
+        if (parsed && parsed.address) {
+          gameAddress = parsed.address;
+          console.log("Using Nitrolite address from localStorage:", gameAddress);
+        }
+      } catch (e) {
+        console.error('Failed to parse saved keys, using MetaMask address instead:', e);
+      }
+    }
+    
+    return gameAddress;
+  };
+  
   // Handle joining a specific available room
   const handleJoinAvailableRoom = (selectedRoomId: string) => {
     if (!isWalletConnected || !address) {
@@ -120,8 +143,11 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
       return;
     }
     
-    console.log("Joining available room with address:", address, "and roomId:", selectedRoomId);
-    onJoinRoom({ eoa: address, roomId: selectedRoomId });
+    // Get the Nitrolite address from localStorage
+    const gameAddress = getNitroliteAddress();
+    
+    console.log("Joining available room with address:", gameAddress, "and roomId:", selectedRoomId);
+    onJoinRoom({ eoa: gameAddress, roomId: selectedRoomId });
   };
 
   // Handle manual refresh of available rooms
@@ -157,14 +183,17 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
       return;
     }
     
+    // Get the Nitrolite address from localStorage
+    const gameAddress = getNitroliteAddress();
+    
     if (mode === 'create') {
       // When creating a room, always pass undefined for roomId
-      console.log("Creating a room with address:", address);
-      onJoinRoom({ eoa: address, roomId: undefined });
+      console.log("Creating a room with address:", gameAddress);
+      onJoinRoom({ eoa: gameAddress, roomId: undefined });
     } else {
       // When joining, use the entered roomId
-      console.log("Joining a room with address:", address, "and roomId:", roomId.trim());
-      onJoinRoom({ eoa: address, roomId: roomId.trim() });
+      console.log("Joining a room with address:", gameAddress, "and roomId:", roomId.trim());
+      onJoinRoom({ eoa: gameAddress, roomId: roomId.trim() });
     }
   };
   
@@ -172,12 +201,15 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
   const handleChannelSuccess = (action: 'join' | 'create', roomIdParam?: string) => {
     if (!address) return;
     
+    // Get the Nitrolite address from localStorage
+    const gameAddress = getNitroliteAddress();
+    
     if (action === 'create') {
-      console.log("Creating a room with address after channel creation:", address);
-      onJoinRoom({ eoa: address, roomId: undefined });
+      console.log("Creating a room with address after channel creation:", gameAddress);
+      onJoinRoom({ eoa: gameAddress, roomId: undefined });
     } else {
-      console.log("Joining a room with address after channel creation:", address, "and roomId:", roomIdParam);
-      onJoinRoom({ eoa: address, roomId: roomIdParam });
+      console.log("Joining a room with address after channel creation:", gameAddress, "and roomId:", roomIdParam);
+      onJoinRoom({ eoa: gameAddress, roomId: roomIdParam });
     }
   };
 

@@ -114,6 +114,19 @@ export class NitroliteRPCClient {
     this.onStatusChangeCallbacks.forEach(callback => callback(status));
   }
 
+  // Sign message function that can be reused across the client
+  async signMessage(message) {
+    logger.auth(`Signing message: ${typeof message === 'string' ? message.slice(0, 50) : JSON.stringify(message).slice(0, 50)}...`);
+    
+    const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
+    const digestHex = ethers.id(messageStr);
+    const messageBytes = ethers.getBytes(digestHex);
+    
+    const { serialized: signature } = this.wallet.signingKey.sign(messageBytes);
+    
+    return signature;
+  }
+
   // Authenticate with WebSocket server
   async authenticate() {
     if (!this.ws) {
@@ -122,18 +135,8 @@ export class NitroliteRPCClient {
 
     logger.auth('Starting authentication process...');
 
-    // Helper function to sign messages
-    const sign = async (message) => {
-      logger.auth(`Signing message: ${typeof message === 'string' ? message.slice(0, 50) : JSON.stringify(message).slice(0, 50)}...`);
-      
-      const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
-      const digestHex = ethers.id(messageStr);
-      const messageBytes = ethers.getBytes(digestHex);
-      
-      const { serialized: signature } = this.wallet.signingKey.sign(messageBytes);
-      
-      return signature;
-    };
+    // Use the signMessage method for consistency
+    const sign = this.signMessage.bind(this);
 
     return new Promise((resolve, reject) => {
       const authRequest = async () => {
@@ -279,18 +282,8 @@ export class NitroliteRPCClient {
 
     const requestId = this.nextRequestId++;
     
-    // Helper function to sign messages
-    const sign = async (message) => {
-      logger.auth(`Signing request message: ${typeof message === 'string' ? message.slice(0, 50) : JSON.stringify(message).slice(0, 50)}...`);
-      
-      const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
-      const digestHex = ethers.id(messageStr);
-      const messageBytes = ethers.getBytes(digestHex);
-      
-      const { serialized: signature } = this.wallet.signingKey.sign(messageBytes);
-      
-      return signature;
-    };
+    // Use the same signing function for consistency
+    const sign = this.signMessage.bind(this);
 
     return new Promise(async (resolve, reject) => {
       try {
@@ -324,19 +317,11 @@ export class NitroliteRPCClient {
     this.pingInterval = setInterval(async () => {
       if (this.status === WSStatus.CONNECTED) {
         try {
-          // Helper function to sign messages
-          const sign = async (message) => {
-            const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
-            const digestHex = ethers.id(messageStr);
-            const messageBytes = ethers.getBytes(digestHex);
-            
-            const { serialized: signature } = this.wallet.signingKey.sign(messageBytes);
-            
-            return signature;
-          };
+          // Use the same signing function for consistency
+          const sign = this.signMessage.bind(this);
           
           const pingMessage = await createPingMessage(sign);
-          logger.ws('Sending ping...');
+          // Don't log pings to reduce noise
           this.ws.send(pingMessage);
         } catch (error) {
           logger.error('Error sending ping:', error);

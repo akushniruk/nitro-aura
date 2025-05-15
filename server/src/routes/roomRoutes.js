@@ -11,7 +11,7 @@ import { formatGameState } from '../services/index.js';
  * @param {Object} payload - Request payload
  * @param {Object} context - Application context containing roomManager and connections
  */
-export function handleJoinRoom(ws, payload, { roomManager, connections, sendError }) {
+export async function handleJoinRoom(ws, payload, { roomManager, connections, sendError }) {
   // Validate payload
   const validation = validateJoinRoomPayload(payload);
   if (!validation.success) {
@@ -84,7 +84,7 @@ export function handleJoinRoom(ws, payload, { roomManager, connections, sendErro
  * @param {WebSocket} ws - WebSocket connection
  * @param {Object} context - Application context containing roomManager
  */
-export function handleGetAvailableRooms(ws, { roomManager }) {
+export async function handleGetAvailableRooms(ws, { roomManager }) {
   // Filter rooms that are not full
   const availableRooms = [];
   

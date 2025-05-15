@@ -3,7 +3,15 @@
  */
 
 import { validateMovePayload } from '../utils/validators.js';
-import { formatGameState, formatGameOverMessage, createGame } from '../services/index.js';
+import { 
+  formatGameState, 
+  formatGameOverMessage, 
+  createGame, 
+  createAppSession,
+  closeAppSession,
+  hasAppSession
+} from '../services/index.js';
+import logger from '../utils/logger.js';
 
 /**
  * Handles a start game request
@@ -11,7 +19,7 @@ import { formatGameState, formatGameOverMessage, createGame } from '../services/
  * @param {Object} payload - Request payload
  * @param {Object} context - Application context containing roomManager and connections
  */
-export function handleStartGame(ws, payload, { roomManager, connections, sendError }) {
+export async function handleStartGame(ws, payload, { roomManager, connections, sendError }) {
   if (!payload || typeof payload !== 'object') {
     return sendError(ws, 'INVALID_PAYLOAD', 'Invalid payload format');
   }
@@ -56,6 +64,22 @@ export function handleStartGame(ws, payload, { roomManager, connections, sendErr
     room.gameState = createGame(room.players.host, room.players.guest);
   }
 
+  // Create an app session for this game if not already created
+  if (!hasAppSession(roomId)) {
+    try {
+      logger.nitro(`Creating app session for room ${roomId}`);
+      const appId = await createAppSession(roomId, room.players.host, room.players.guest);
+      logger.nitro(`App session created with ID ${appId}`);
+      
+      // Store the app ID in the room object
+      room.appId = appId;
+    } catch (error) {
+      logger.error(`Failed to create app session for room ${roomId}:`, error);
+      // Continue with the game even if app session creation fails
+      // This allows the game to work in a fallback mode
+    }
+  }
+
   // Broadcast game started
   roomManager.broadcastToRoom(
     roomId,
@@ -77,7 +101,7 @@ export function handleStartGame(ws, payload, { roomManager, connections, sendErr
  * @param {Object} payload - Request payload
  * @param {Object} context - Application context containing roomManager and connections
  */
-export function handleMove(ws, payload, { roomManager, connections, sendError }) {
+export async function handleMove(ws, payload, { roomManager, connections, sendError }) {
   // Validate payload
   const validation = validateMovePayload(payload);
   if (!validation.success) {
@@ -119,6 +143,34 @@ export function handleMove(ws, payload, { roomManager, connections, sendError })
       'game:over', 
       formatGameOverMessage(result.gameState)
     );
+
+    // Close the app session if one was created
+    try {
+      const room = roomManager.rooms.get(roomId);
+      
+      // First check if the room has an appId directly
+      if (room && room.appId) {
+        logger.nitro(`Closing app session with ID ${room.appId} for room ${roomId}`);
+        
+        // Create the final allocations based on the game result
+        // In this example, we're just using [0,0,0] but you might want to implement
+        // actual token allocations based on the game outcome
+        const finalAllocations = [0, 0, 0];
+        
+        await closeAppSession(roomId, finalAllocations);
+        logger.nitro(`App session closed for room ${roomId}`);
+      } 
+      // Otherwise check the app sessions storage
+      else if (hasAppSession(roomId)) {
+        logger.nitro(`Closing app session from storage for room ${roomId}`);
+        const finalAllocations = [0, 0, 0];
+        await closeAppSession(roomId, finalAllocations);
+        logger.nitro(`App session closed for room ${roomId}`);
+      }
+    } catch (error) {
+      logger.error(`Failed to close app session for room ${roomId}:`, error);
+      // Continue with room cleanup even if app session closure fails
+    }
 
     // Clean up the room after a short delay
     setTimeout(() => {
