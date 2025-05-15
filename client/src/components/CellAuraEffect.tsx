@@ -41,8 +41,8 @@ export function CellAuraEffect({ value, activated }: CellAuraEffectProps) {
       
       constructor(exploding: boolean = false) {
         // Place particles centrally
-        this.x = canvas.width / 2 + (Math.random() - 0.5) * 20;
-        this.y = canvas.height / 2 + (Math.random() - 0.5) * 20;
+        this.x = (canvas?.width || 100) / 2 + (Math.random() - 0.5) * 20;
+        this.y = (canvas?.height || 100) / 2 + (Math.random() - 0.5) * 20;
         
         this.size = Math.random() * 3 + 0.5;
         
@@ -82,15 +82,17 @@ export function CellAuraEffect({ value, activated }: CellAuraEffectProps) {
         }
         
         // Draw particle
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = color.glow + alpha + ')';
-        
-        // Add glow effect
-        ctx.shadowColor = color.primary;
-        ctx.shadowBlur = 5;
-        ctx.fill();
-        ctx.shadowBlur = 0;
+        if (ctx) {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+          ctx.fillStyle = color.glow + alpha + ')';
+          
+          // Add glow effect
+          ctx.shadowColor = color.primary;
+          ctx.shadowBlur = 5;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
         
         // Return true if particle is still alive
         return this.age < this.lifespan;

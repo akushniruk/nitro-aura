@@ -1,4 +1,4 @@
-import { Address } from 'viem';
+import type { Address } from 'viem';
 
 // Common token decimals
 const TOKEN_DECIMALS: Record<string, number> = {

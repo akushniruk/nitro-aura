@@ -1,10 +1,9 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useChannel } from "../hooks/useChannel";
 import { WalletStore } from "../store";
 import { useStore } from "../store/storeUtils";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { cn } from "../lib/utils";
 
 // Default USDC token address on Polygon
@@ -14,7 +13,7 @@ const USDC_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
  * Component for depositing funds and creating a channel
  */
 export function ChannelDeposit() {
-    const [amount, setAmount] = useState("");
+    const amount = "0.0001"; // Fixed amount
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -22,13 +21,7 @@ export function ChannelDeposit() {
     const { createChannel, depositToChannel, isChannelOpen } = useChannel();
     const wallet = useStore(WalletStore.state);
 
-    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Only allow numbers with up to 6 decimal places (for USDC)
-        const value = e.target.value;
-        if (/^\d*\.?\d{0,6}$/.test(value) || value === "") {
-            setAmount(value);
-        }
-    };
+    // Fixed amount, no change handler needed
 
     const handleCreateChannel = async () => {
         if (!amount || parseFloat(amount) <= 0) {
@@ -99,35 +92,30 @@ export function ChannelDeposit() {
                         USDC Amount
                     </label>
                     <div className="relative">
-                        <Input
-                            type="text"
-                            name="amount"
-                            id="amount"
-                            className="pl-3 pr-12"
-                            placeholder="0.00"
+                        <div 
+                            className="w-full flex items-center px-3 py-2 bg-gray-900 border border-gray-700 rounded-md cursor-not-allowed h-10" 
                             aria-describedby="amount-currency"
-                            value={amount}
-                            onChange={handleAmountChange}
-                            disabled={isProcessing}
-                        />
-                        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                            <span className="text-gray-400 sm:text-sm" id="amount-currency">
-                                USDC
-                            </span>
+                        >
+                            <span className="text-gray-400">0.0001</span>
+                            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                <span className="text-gray-400 sm:text-sm" id="amount-currency">
+                                    USDC
+                                </span>
+                            </div>
                         </div>
                     </div>
-                    <p className="mt-1 text-xs text-gray-400">Minimum deposit: 0.1 USDC</p>
+                    <p className="mt-1 text-xs text-gray-400">Fixed deposit amount: 0.0001 USDC</p>
                 </div>
             </CardContent>
             <CardFooter className="justify-end">
                 <Button
                     className={cn(
                         "bg-gradient-to-r from-cyan-500 to-blue-600 hover:opacity-90",
-                        (isProcessing || !amount || parseFloat(amount) < 0.1) &&
+                        isProcessing &&
                             "bg-gray-700 text-gray-400 opacity-50 cursor-not-allowed hover:opacity-50"
                     )}
                     onClick={handleCreateChannel}
-                    disabled={isProcessing || !amount || parseFloat(amount) < 0.1}
+                    disabled={isProcessing}
                 >
                     {isProcessing ? "Processing..." : "Create & Deposit"}
                 </Button>

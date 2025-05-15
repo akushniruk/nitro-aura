@@ -1,5 +1,5 @@
 import { Store } from './storeUtils';
-import { Address } from 'viem';
+import type { Address } from 'viem';
 
 // Nitrolite Store
 interface NitroliteStoreState {

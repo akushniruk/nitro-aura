@@ -34,6 +34,10 @@ export function useNitroliteIntegration() {
           console.error('Failed to recover channel:', error);
           clearStoredChannel();
         }
+      } else {
+        console.log('No existing channel data found in localStorage');
+        // Ensure channels are marked as closed if no data exists
+        WalletStore.setChannelOpen(false);
       }
     }
   }, [isConnected, nitroliteState.client, currentChannel, clearStoredChannel]);
@@ -60,7 +64,7 @@ export function useNitroliteIntegration() {
     wsStatus: status,
     isWsConnected: isConnected,
     hasOpenChannel: walletState.channelOpen,
-    currentChannelId: currentChannel?.channelId || null,
+    currentChannelId: currentChannel ? JSON.stringify(currentChannel).substring(0, 20) : null,
     initializeNitroliteClient
   };
 }

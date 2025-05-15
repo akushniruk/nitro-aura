@@ -1,10 +1,10 @@
 import { useCallback, useState } from "react";
-import { Address, Hex } from "viem";
+import type { Address, Hex } from "viem";
 import { NitroliteStore, WalletStore } from "../store";
 import { useStore } from "../store/storeUtils";
 import { parseTokenUnits } from "./utils/tokenDecimals";
 import { useWebSocketContext } from "../context/WebSocketContext";
-import { State } from "@erc7824/nitrolite";
+import type { State } from "@erc7824/nitrolite";
 
 // Define localStorage keys
 const STORAGE_KEYS = {
@@ -32,13 +32,16 @@ export function useChannel() {
         const savedChannelId = localStorage.getItem(STORAGE_KEYS.CHANNEL_ID);
 
         if (savedChannelId) {
+            console.log("Found existing channel ID in localStorage:", savedChannelId);
             return { exists: true, source: "localStorage" };
         }
 
         if (walletState.channelOpen) {
+            console.log("Channel is open according to walletStore");
             return { exists: true, source: "walletStore" };
         }
 
+        console.log("No existing channel found");
         return { exists: false };
     }, [walletState.channelOpen]);
 
@@ -47,7 +50,7 @@ export function useChannel() {
      */
     const saveChannelToStorage = useCallback((state: State, channelId: string) => {
         try {
-            const stateData = JSON.stringify(state, (key, value) => (typeof value === "bigint" ? value.toString() + "n" : value));
+            const stateData = JSON.stringify(state, (_, value) => (typeof value === "bigint" ? value.toString() + "n" : value));
 
             localStorage.setItem(STORAGE_KEYS.CHANNEL_STATE, stateData);
             localStorage.setItem(STORAGE_KEYS.CHANNEL_ID, channelId);
@@ -99,7 +102,6 @@ export function useChannel() {
                 console.log("Available client methods:", Object.keys(client));
 
                 const amountBigInt = parseTokenUnits(tokenAddress, amount);
-
                 const result = await client.createChannel({
                     initialAllocationAmounts: [amountBigInt, BigInt(0)],
                     stateData: EMPTY_STATE_DATA,

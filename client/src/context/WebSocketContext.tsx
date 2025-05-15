@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode, useRef } from "react";
 import { WebSocketClient, createWebSocketClient, type WSStatus, type WalletSigner, getAddressFromPublicKey } from "../websocket";
-import type { Channel as NitroliteChannel } from "@erc7824/nitrolite";
 import type { Channel } from "@erc7824/nitrolite";
 import APP_CONFIG from "./app";
 import { generateKeyPair, createEthersSigner } from "./createSigner";
@@ -20,13 +19,13 @@ interface WebSocketContextProps {
     status: WSStatus;
     keyPair: CryptoKeypair | null;
     wsChannel: Channel | null;
-    currentNitroliteChannel: NitroliteChannel | null;
+    currentNitroliteChannel: Channel | null;
     isConnected: boolean;
     hasKeys: boolean;
     generateKeys: () => Promise<CryptoKeypair | null>;
     connect: () => Promise<boolean>;
     disconnect: () => void;
-    setNitroliteChannel: (channel: NitroliteChannel) => void;
+    setNitroliteChannel: (channel: Channel) => void;
     clearKeys: () => void;
     sendPing: () => Promise<void>;
     sendRequest: (payload: string) => Promise<unknown>;
@@ -39,7 +38,7 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
     const [keyPair, setKeyPair] = useState<CryptoKeypair | null>(null);
     const [currentSigner, setCurrentSigner] = useState<WalletSigner | null>(null);
     const [wsChannel, setWsChannel] = useState<Channel | null>(null);
-    const [currentNitroliteChannel, setCurrentNitroliteChannel] = useState<NitroliteChannel | null>(null);
+    const [currentNitroliteChannel, setCurrentNitroliteChannel] = useState<Channel | null>(null);
     const clientRef = useRef<WebSocketClient | null>(null);
 
     useEffect(() => {
@@ -214,14 +213,14 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
         }
     }, []);
 
-    const setNitroliteChannel = useCallback((nitroliteChannel: NitroliteChannel) => {
+    const setNitroliteChannel = useCallback((nitroliteChannel: Channel) => {
         if (!clientRef.current) {
             console.error("Cannot set Nitrolite channel: Client not initialized");
             return;
         }
         setCurrentNitroliteChannel(nitroliteChannel);
         clientRef.current.setNitroliteChannel(nitroliteChannel);
-        console.log(`Set Nitrolite channel: ${nitroliteChannel.channelId.slice(0, 8)}...`);
+        console.log(`Set Nitrolite channel: ${JSON.stringify(nitroliteChannel).slice(0, 50)}...`);
     }, []);
 
     const sendPing = useCallback(async () => {

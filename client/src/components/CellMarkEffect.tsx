@@ -27,7 +27,7 @@ export function CellMarkEffect({ value, activated }: CellMarkEffectProps) {
   if (!showEffect) return null;
   
   const isX = value === 'X';
-  const baseColor = isX ? 'cyan' : 'magenta';
+  // const baseColor = isX ? 'cyan' : 'magenta';
   
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -106,7 +106,7 @@ export function CellMarkEffect({ value, activated }: CellMarkEffectProps) {
       })}
       
       {/* Add custom keyframes for line growth with a style tag */}
-      <style jsx>{`
+      <style>{`
         @keyframes lineGrow {
           0% {
             width: 0;

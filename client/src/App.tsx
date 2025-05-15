@@ -19,7 +19,7 @@ function App() {
     const [gameView, setGameView] = useState<"lobby" | "game">("lobby");
 
     // WebSocket connection
-    const { isConnected, error: wsError, lastMessage, joinRoom, makeMove, startGame, getAvailableRooms } = useWebSocket();
+    const { error: wsError, lastMessage, joinRoom, makeMove, startGame, getAvailableRooms } = useWebSocket();
     useWebSocketNitrolite();
     const { client, loading: nitroliteLoading, error: nitroliteError } = useNitrolite();
     

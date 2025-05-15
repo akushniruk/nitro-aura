@@ -15,14 +15,14 @@ export function useSoundEffects() {
     audioContext.current = ctx;
     
     // Define the sounds to preload
-    const soundsToLoad: Array<{ type: SoundType; url: string }> = [
-      // These URLs would point to your actual sound files
-      { type: 'mark-x', url: '/sounds/mark-x.mp3' },
-      { type: 'mark-o', url: '/sounds/mark-o.mp3' },
-      { type: 'game-over', url: '/sounds/game-over.mp3' },
-      { type: 'win', url: '/sounds/win.mp3' },
-      { type: 'draw', url: '/sounds/draw.mp3' },
-    ];
+    // const soundsToLoad: Array<{ type: SoundType; url: string }> = [
+    //   // These URLs would point to your actual sound files
+    //   { type: 'mark-x', url: '/sounds/mark-x.mp3' },
+    //   { type: 'mark-o', url: '/sounds/mark-o.mp3' },
+    //   { type: 'game-over', url: '/sounds/game-over.mp3' },
+    //   { type: 'win', url: '/sounds/win.mp3' },
+    //   { type: 'draw', url: '/sounds/draw.mp3' },
+    // ];
     
     // Instead of loading real files, we'll generate audio buffers programmatically
     // This is a fallback for development when sound files might not exist

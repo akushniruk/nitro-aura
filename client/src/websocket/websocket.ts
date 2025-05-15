@@ -1,7 +1,7 @@
 import { type Hex } from "viem";
 import { ethers } from "ethers";
 import { createAuthRequestMessage, NitroliteRPC, createAuthVerifyMessage, createPingMessage } from "@erc7824/nitrolite";
-import type { Channel as NitroliteChannel } from "@erc7824/nitrolite";
+import type { Channel } from "@erc7824/nitrolite";
 
 // ===== Types =====
 
@@ -58,28 +58,36 @@ export const getAddressFromPublicKey = (publicKey: string): string => {
 export class WebSocketClient {
     private ws: WebSocket | null = null;
     private pendingRequests = new Map<number, { resolve: (value: unknown) => void; reject: (reason: Error) => void }>();
-    private requestCounter = 0;
+    // private requestCounter = 0;
     private reconnectAttempts = 0;
     private reconnectTimeout: any = null;
     private statusHandlers: ((status: WSStatus) => void)[] = [];
     private messageHandlers: ((message: unknown) => void)[] = [];
     private errorHandlers: ((error: Error) => void)[] = [];
     private currentChannel: any = null;
-    private nitroliteChannel: NitroliteChannel | null = null;
+    private nitroliteChannel: Channel | null = null;
 
     /**
      * Creates a new WebSocket client
      */
+    private url: string;
+    private signer: WalletSigner;
+    private options: WebSocketClientOptions;
+
     constructor(
-        private url: string,
-        private signer: WalletSigner,
-        private options: WebSocketClientOptions = {
+        url: string,
+        signer: WalletSigner,
+        options: WebSocketClientOptions = {
             autoReconnect: true,
             reconnectDelay: 1000,
             maxReconnectAttempts: 5,
             requestTimeout: 10000,
         }
-    ) {}
+    ) {
+        this.url = url;
+        this.signer = signer;
+        this.options = options;
+    }
 
     /**
      * Registers a status change callback
@@ -126,14 +134,14 @@ export class WebSocketClient {
     /**
      * Gets the current Nitrolite channel
      */
-    get currentNitroliteChannel(): NitroliteChannel | null {
+    get currentNitroliteChannel(): Channel | null {
         return this.nitroliteChannel;
     }
 
     /**
      * Sets the Nitrolite channel
      */
-    setNitroliteChannel(channel: NitroliteChannel): void {
+    setNitroliteChannel(channel: Channel): void {
         this.nitroliteChannel = channel;
     }
 
@@ -171,7 +179,7 @@ export class WebSocketClient {
 
                 this.ws.onmessage = this.handleMessage.bind(this);
 
-                this.ws.onerror = (event) => {
+                this.ws.onerror = () => {
                     this.emitError(new Error("WebSocket connection error"));
                     reject(new Error("WebSocket connection error"));
                 };
@@ -288,7 +296,7 @@ export class WebSocketClient {
             this.reconnectTimeout = null;
         }
 
-        if (this.ws && [WebSocketReadyState.OPEN, WebSocketReadyState.CONNECTING].includes(this.ws.readyState)) {
+        if (this.ws && (this.ws.readyState === WebSocketReadyState.OPEN || this.ws.readyState === WebSocketReadyState.CONNECTING)) {
             try {
                 this.ws.close(1000, "Normal closure");
             } catch (err) {
@@ -450,6 +458,9 @@ export class WebSocketClient {
             });
 
             try {
+                if (!this.ws) {
+                    throw new Error("WebSocket is not initialized");
+                }
                 this.ws.send(signedRequest);
             } catch (error) {
                 clearTimeout(requestTimeout);

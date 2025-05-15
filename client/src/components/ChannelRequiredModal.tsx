@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { Loader2, AlertCircle, Coins, ArrowRight } from "lucide-react";
 import { cn } from "../lib/utils";
 // Since we're importing from viem which isn't configured yet, let's declare the types here
-type Address = `0x${string}`;
+// type Address = `0x${string}`;
 type Hex = `0x${string}`;
 import { useChannel } from "../hooks/useChannel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
@@ -21,78 +20,86 @@ interface ChannelRequiredModalProps {
 }
 
 export function ChannelRequiredModal({ isOpen, onClose, onSuccess, mode, roomId }: ChannelRequiredModalProps) {
-    const [amount, setAmount] = useState("1");
-    const [amountError, setAmountError] = useState<string | null>(null);
+    const amount = "0.0001"; // Fixed amount
     const [step, setStep] = useState<"info" | "create" | "success">("info");
     const { createChannel, depositToChannel, isLoading, error, isChannelOpen } = useChannel();
 
-    // Check if already has channel open
+    // Check if the modal should stay open when there's no channel
     useEffect(() => {
-        if (isChannelOpen && isOpen) {
-            // If channel is already open, proceed directly
-            onSuccess(mode, roomId);
-            onClose();
+        // If modal is open, check if channel ID exists
+        if (isOpen) {
+            const channelId = localStorage.getItem("nitrolite_channel_id");
+
+            // If channel is open in state and channel ID exists, proceed to success
+            if (isChannelOpen && channelId) {
+                console.log("Channel is already open and ID exists, closing modal without calling onSuccess");
+                // Just close the modal without calling onSuccess to prevent double join message
+                onClose();
+            }
         }
-    }, [isChannelOpen, isOpen, onSuccess, onClose, mode, roomId]);
+    }, [isChannelOpen, isOpen, onClose]);
 
     const handleCreateChannel = async () => {
-        // Validate amount
-        if (!amount) {
-            setAmountError("Please enter an amount");
-            return;
-        }
+        // Fixed amount, no validation needed
 
-        const amountNum = parseFloat(amount);
-        if (isNaN(amountNum)) {
-            setAmountError("Please enter a valid number");
-            return;
-        }
-
-        if (amountNum <= 0) {
-            setAmountError("Amount must be greater than 0");
-            return;
-        }
-
-        // Clear any previous errors
-        setAmountError(null);
+        // No validation needed for fixed amount
 
         try {
-            await depositToChannel(USDC_ADDRESS, amount);
-            await createChannel(USDC_ADDRESS, amount);
+            console.log("Starting channel creation process with fixed amount:", amount);
+            // Immediately show the creating screen
             setStep("create");
-            setStep("success");
 
-            // Auto proceed after success
-            setTimeout(() => {
-                onSuccess(mode, roomId);
-                onClose();
-            }, 1500);
+            try {
+                // Step 1: Deposit to channel
+                console.log("Starting deposit with amount:", amount);
+                await depositToChannel(USDC_ADDRESS, amount);
+                console.log("Deposit successful, creating channel...");
+
+                // Step 2: Create channel
+                const result = await createChannel(USDC_ADDRESS, amount);
+                console.log("Channel creation successful:", result);
+
+                // Only proceed to success if we have a valid result
+                if (result && result.channelId) {
+                    // Make sure the channel ID exists in localStorage
+                    localStorage.setItem("nitrolite_channel_id", result.channelId);
+                    console.log("Saved channel ID to localStorage:", result.channelId);
+
+                    // Show success screen
+                    setStep("success");
+
+                    // Auto proceed after 1.5 seconds to allow the user to see the success message
+                    setTimeout(() => {
+                        // Log the room action before proceeding
+                        console.log(`Proceeding with ${mode} action after channel creation, roomId:`, roomId);
+                        onSuccess(mode, roomId);
+                        onClose();
+                    }, 1500);
+                } else {
+                    throw new Error("Channel creation successful but no channel ID returned");
+                }
+            } catch (innerErr) {
+                console.error("Process failed during channel creation:", innerErr);
+                throw innerErr; // Re-throw to be caught by the outer catch
+            }
         } catch (err) {
+            console.error("Channel creation failed:", err);
             // Error state is handled by the useChannel hook
-            setStep("info");
+            // Stay in the "create" step for 1.5 seconds so user sees the error before going back to info
+            setTimeout(() => {
+                setStep("info");
+            }, 1500);
         }
     };
 
-    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Clear error when user starts typing
-        if (amountError) {
-            setAmountError(null);
-        }
-
-        // Only allow numbers and decimals
-        const value = e.target.value.replace(/[^0-9.]/g, "");
-        // Prevent multiple decimal points
-        const decimalCount = value.split(".").length - 1;
-        if (decimalCount > 1) return;
-        // Limit to 6 decimal places for tokens with high precision
-        const parts = value.split(".");
-        if (parts.length > 1 && parts[1].length > 6) return;
-
-        setAmount(value);
-    };
+    // No handleAmountChange needed for fixed amount
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Dialog open={isOpen} onOpenChange={(open) => {
+            if (!open) {
+                onClose();
+            }
+        }}>
             <DialogContent className="max-w-md w-full border-gray-700 shadow-2xl relative overflow-hidden">
                 {/* Background gradient */}
                 <div className={cn("absolute inset-0 bg-gradient-to-b", "from-cyan-900/30 to-gray-900/90", "z-0")}></div>
@@ -135,20 +142,14 @@ export function ChannelRequiredModal({ isOpen, onClose, onSuccess, mode, roomId 
                                     <label htmlFor="amount" className="block text-sm font-medium text-gray-300">
                                         Deposit Amount (USDC)
                                     </label>
-                                    <Input
+                                    <div
+                                        className="w-full flex items-center px-3 py-2 bg-gray-900 border border-cyan-900/50 rounded-md cursor-not-allowed h-10"
                                         id="amount"
-                                        type="text"
-                                        value={amount}
-                                        onChange={handleAmountChange}
-                                        placeholder="1"
-                                        prefix="$"
-                                        variant="cyan"
-                                    />
-                                    {amountError ? (
-                                        <p className="text-xs text-red-400 mt-1">{amountError}</p>
-                                    ) : (
-                                        <p className="text-xs text-gray-500">Enter any amount greater than 0 USDC</p>
-                                    )}
+                                    >
+                                        <span className="text-cyan-400 mr-1">$</span>
+                                        <span className="text-gray-400">0.0001</span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">Fixed deposit amount: 0.0001 USDC</p>
                                 </div>
 
                                 {error && (
@@ -166,7 +167,7 @@ export function ChannelRequiredModal({ isOpen, onClose, onSuccess, mode, roomId 
                         {step === "create" && (
                             <div className="flex flex-col items-center justify-center py-8 space-y-4">
                                 <Loader2 className="h-12 w-12 text-cyan-400 animate-spin" />
-                                <p className="text-gray-300">Creating your payment channel...</p>
+                                <p className="text-gray-300">Creating your channel...</p>
                                 <p className="text-sm text-gray-500">Check your wallet for transaction confirmation</p>
                             </div>
                         )}
@@ -191,15 +192,17 @@ export function ChannelRequiredModal({ isOpen, onClose, onSuccess, mode, roomId 
                     <DialogFooter>
                         {step === "info" && (
                             <>
-                                <Button onClick={onClose} variant="outline" className="w-full sm:w-auto">
+                                <Button 
+                                    onClick={() => {
+                                        console.log("Cancel button clicked");
+                                        onClose();
+                                    }} 
+                                    variant="outline" 
+                                    className="w-full sm:w-auto"
+                                >
                                     Cancel
                                 </Button>
-                                <Button
-                                    onClick={handleCreateChannel}
-                                    variant="glowCyan"
-                                    className="w-full sm:w-auto"
-                                    disabled={isLoading || !amount || parseFloat(amount) <= 0 || !!amountError}
-                                >
+                                <Button onClick={handleCreateChannel} variant="glowCyan" className="w-full sm:w-auto" disabled={isLoading}>
                                     {isLoading ? (
                                         <>
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
