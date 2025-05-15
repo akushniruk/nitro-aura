@@ -9,6 +9,7 @@ import { Wallet, Users, Loader2, KeyRound, GamepadIcon, RefreshCw, Clock, AlertC
 import { useMetaMask } from "../hooks/useMetaMask";
 import { useChannel } from "../hooks/useChannel";
 import { ChannelRequiredModal } from "./ChannelRequiredModal";
+import { OnlinePlayersCounter } from "./OnlinePlayersCounter";
 
 interface LobbyProps {
     onJoinRoom: (payload: JoinRoomPayload) => void;
@@ -16,9 +17,10 @@ interface LobbyProps {
     error: string | null;
     availableRooms?: AvailableRoom[];
     onGetAvailableRooms: () => void;
+    onlineUsers?: number;
 }
 
-export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onGetAvailableRooms }: LobbyProps) {
+export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onGetAvailableRooms, onlineUsers = 1 }: LobbyProps) {
     const [roomId, setRoomId] = useState("");
     const [roomIdError, setRoomIdError] = useState("");
     const [mode, setMode] = useState<"create" | "join">("create");
@@ -492,9 +494,12 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
                     )}
                 </CardContent>
 
-                {/* Card footer with tagline */}
-                <CardFooter className="justify-center opacity-60 py-3 border-t border-gray-800/30">
+                {/* Card footer with tagline and online counter */}
+                <CardFooter className="justify-between py-3 border-t border-gray-800/30">
                     <p className="text-xs text-gray-500">Light speed, neon bleed.</p>
+                    <div className="flex items-center gap-2">
+                        <OnlinePlayersCounter className="ml-auto" count={onlineUsers} />
+                    </div>
                 </CardFooter>
             </Card>
         </div>

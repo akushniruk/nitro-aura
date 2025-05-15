@@ -16,6 +16,25 @@ const roomManager = createRoomManager();
 // TODO: Use @erc7824/nitrolite for connection tracking when available
 const connections = new Map();
 
+// Track online users count
+let onlineUsersCount = 0;
+
+// Function to broadcast online users count to all clients
+const broadcastOnlineUsersCount = () => {
+  const message = JSON.stringify({
+    type: 'onlineUsers',
+    count: onlineUsersCount
+  });
+  
+  wss.clients.forEach((client) => {
+    if (client.readyState === 1) { // WebSocket.OPEN
+      client.send(message);
+    }
+  });
+  
+  logger.ws(`Broadcasting online users count: ${onlineUsersCount}`);
+};
+
 // Create context object to share between route handlers
 const context = {
   roomManager,
@@ -25,6 +44,10 @@ const context = {
 
 wss.on('connection', (ws) => {
   logger.ws('Client connected');
+  
+  // Increment online users count and broadcast to all clients
+  onlineUsersCount++;
+  broadcastOnlineUsersCount();
   
   // Handle client messages
   ws.on('message', async (message) => {
@@ -75,6 +98,11 @@ wss.on('connection', (ws) => {
         break;
       }
     }
+    
+    // Decrement online users count and broadcast to all clients
+    onlineUsersCount = Math.max(0, onlineUsersCount - 1);
+    broadcastOnlineUsersCount();
+    
     logger.ws('Client disconnected');
   });
 });
@@ -113,3 +141,8 @@ initializeNitroliteServices().then(() => {
 
 // Start keepalive mechanism
 startPingInterval(wss);
+
+// Broadcast online users count periodically to ensure all clients have the latest count
+setInterval(() => {
+  broadcastOnlineUsersCount();
+}, 30000);

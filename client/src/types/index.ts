@@ -52,6 +52,8 @@ export type WebSocketMessageType =
   | 'room:available'
   | 'game:started'
   | 'game:over'
+  | 'onlineUsers'
+  | 'players:count'
   | 'error';
 
 // Base WebSocket message
@@ -129,6 +131,11 @@ export interface GetAvailableRoomsMessage extends WebSocketMessage {
   type: 'getAvailableRooms';
 }
 
+export interface OnlineUsersMessage extends WebSocketMessage {
+  type: 'onlineUsers' | 'players:count';
+  count: number;
+}
+
 // Union type for all WebSocket messages
 export type WebSocketMessages =
   | JoinRoomMessage
@@ -141,6 +148,7 @@ export type WebSocketMessages =
   | GameOverMessage
   | AvailableRoomsMessage
   | GetAvailableRoomsMessage
+  | OnlineUsersMessage
   | ErrorMessage;
 
 // MetaMask Ethereum Provider

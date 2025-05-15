@@ -15,9 +15,10 @@ interface GameLobbyIntegratedProps {
     onJoinRoom: (payload: JoinRoomPayload) => void;
     availableRooms: AvailableRoom[];
     onGetAvailableRooms: () => void;
+    onlineUsers?: number;
 }
 
-export function GameLobbyIntegrated({ onJoinRoom, availableRooms = [], onGetAvailableRooms }: GameLobbyIntegratedProps) {
+export function GameLobbyIntegrated({ onJoinRoom, availableRooms = [], onGetAvailableRooms, onlineUsers = 1 }: GameLobbyIntegratedProps) {
     const [isLoading, setIsLoading] = useState(true);
     const { isConnected, status } = useWebSocketContext();
     const { clearStoredChannel } = useChannel();
@@ -110,6 +111,7 @@ export function GameLobbyIntegrated({ onJoinRoom, availableRooms = [], onGetAvai
                 error={null}
                 availableRooms={availableRooms}
                 onGetAvailableRooms={onGetAvailableRooms}
+                onlineUsers={onlineUsers}
             />
         </>
     );

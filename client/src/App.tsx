@@ -22,10 +22,10 @@ function App() {
     const { error: wsError, lastMessage, joinRoom, makeMove, startGame, getAvailableRooms } = useWebSocket();
     useWebSocketNitrolite();
     const { client, loading: nitroliteLoading, error: nitroliteError } = useNitrolite();
-    
+
     // Initialize the Nitrolite integration
     const { initializeNitroliteClient } = useNitroliteIntegration();
-    
+
     // When the Nitrolite client is available, initialize it
     useEffect(() => {
         if (client && !nitroliteLoading && !nitroliteError) {
@@ -40,6 +40,7 @@ function App() {
 
     // Available rooms state
     const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([]);
+    const [onlineUsers, setOnlineUsers] = useState<number>(1);
 
     // Game state
     const {
@@ -64,7 +65,7 @@ function App() {
     useEffect(() => {
         // Combine all possible error sources
         const combinedError = wsError || errorMessage || nitroliteError;
-        
+
         if (combinedError) {
             console.log("Error detected:", combinedError);
             setShowError(true);
@@ -80,6 +81,10 @@ function App() {
         if (lastMessage && lastMessage.type === "room:available") {
             const roomsMessage = lastMessage as AvailableRoomsMessage;
             setAvailableRooms(roomsMessage.rooms);
+        }
+
+        if (lastMessage && lastMessage.type === "onlineUsers") {
+            setOnlineUsers(lastMessage.count);
         }
     }, [lastMessage]);
 
@@ -178,7 +183,12 @@ function App() {
             {/* Main Content */}
             <div className="max-w-xl w-full relative z-10">
                 {gameView === "lobby" ? (
-                    <GameLobbyIntegrated onJoinRoom={handleJoinRoom} availableRooms={availableRooms} onGetAvailableRooms={handleGetAvailableRooms} />
+                    <GameLobbyIntegrated 
+                        onJoinRoom={handleJoinRoom} 
+                        availableRooms={availableRooms} 
+                        onGetAvailableRooms={handleGetAvailableRooms}
+                        onlineUsers={onlineUsers}
+                    />
                 ) : (
                     <GameScreen
                         gameState={gameState}
