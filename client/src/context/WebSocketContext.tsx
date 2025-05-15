@@ -55,15 +55,31 @@ export const WebSocketProvider: React.FC<{ children: ReactNode }> = ({ children 
                     }
                     setKeyPair(parsed);
                     console.log("Loaded existing keys from storage");
+                    // @ts-ignore
                 } catch (e) {
                     console.error("Failed to parse saved keys - will generate new ones");
                     localStorage.removeItem(CRYPTO_KEYPAIR_KEY);
+                    generateNewKeysAndStore();
                 }
             } else {
-                console.log("No saved keys found - will generate on connect");
+                console.log("No saved keys found - generating new ones");
+                generateNewKeysAndStore();
             }
         }
     }, []);
+
+    const generateNewKeysAndStore = async () => {
+        try {
+            const newKeyPair = await generateKeyPair();
+            setKeyPair(newKeyPair);
+            localStorage.setItem(CRYPTO_KEYPAIR_KEY, JSON.stringify(newKeyPair));
+            console.log("Generated and stored new crypto keys");
+            return newKeyPair;
+        } catch (error) {
+            console.error("Error generating and storing keys:", error);
+            return null;
+        }
+    };
 
     const generateKeys = useCallback(async () => {
         try {
