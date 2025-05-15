@@ -3,6 +3,7 @@
  */
 import { WebSocketServer } from 'ws';
 import dotenv from 'dotenv';
+import logger from '../utils/logger.js';
 
 // Load environment variables
 dotenv.config();
@@ -13,7 +14,7 @@ dotenv.config();
  */
 export function createWebSocketServer() {
   const port = process.env.PORT || 8080;
-  console.log(`Creating WebSocket server on port ${port}`);
+  logger.system(`Creating WebSocket server on port ${port}`);
   
   return new WebSocketServer({ 
     host: '0.0.0.0', 

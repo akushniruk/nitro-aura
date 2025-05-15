@@ -7,6 +7,7 @@ import { ethers } from 'ethers';
 import WebSocket from 'ws';
 import { NitroliteClient, NitroliteRPC, createAuthRequestMessage, createAuthVerifyMessage, createPingMessage } from '@erc7824/nitrolite';
 import dotenv from 'dotenv';
+import logger from '../utils/logger.js';
 
 // Load environment variables
 dotenv.config();
@@ -42,7 +43,7 @@ export class ServerWebSocketClient {
     this.onStatusChangeCallbacks = [];
     this.nitroliteClient = null;
 
-    console.log(`Server wallet initialized with address: ${this.address}`);
+    logger.system(`Server wallet initialized with address: ${this.address}`);
   }
 
   // Register message callback
@@ -58,27 +59,27 @@ export class ServerWebSocketClient {
   // Connect to WebSocket server
   async connect() {
     if (this.status === WSStatus.CONNECTED || this.status === WSStatus.CONNECTING) {
-      console.log('Already connected or connecting...');
+      logger.ws('Already connected or connecting...');
       return;
     }
 
     try {
-      console.log(`Connecting to ${this.url}...`);
+      logger.ws(`Connecting to ${this.url}...`);
       this.setStatus(WSStatus.CONNECTING);
 
       this.ws = new WebSocket(this.url);
 
       this.ws.on('open', async () => {
-        console.log('WebSocket connection established');
+        logger.ws('WebSocket connection established');
         this.setStatus(WSStatus.AUTHENTICATING);
         try {
           await this.authenticate();
-          console.log('Successfully authenticated with the WebSocket server');
-          this.setStatus(WSStatus.CONNECTED);
+          logger.auth('Successfully authenticated with the WebSocket server');
+          // Note: Status should already be CONNECTED from inside authenticate()
           this.reconnectAttempts = 0;
           this.startPingInterval();
         } catch (error) {
-          console.error('Authentication failed:', error);
+          logger.error('Authentication failed:', error);
           this.setStatus(WSStatus.AUTH_FAILED);
           this.ws.close();
         }
@@ -89,17 +90,17 @@ export class ServerWebSocketClient {
       });
 
       this.ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
+        logger.error('WebSocket error:', error);
       });
 
       this.ws.on('close', () => {
-        console.log('WebSocket connection closed');
+        logger.ws('WebSocket connection closed');
         this.setStatus(WSStatus.DISCONNECTED);
         clearInterval(this.pingInterval);
         this.handleReconnect();
       });
     } catch (error) {
-      console.error('Failed to connect:', error);
+      logger.error('Failed to connect:', error);
       this.setStatus(WSStatus.DISCONNECTED);
       this.handleReconnect();
     }
@@ -109,7 +110,7 @@ export class ServerWebSocketClient {
   setStatus(status) {
     const prevStatus = this.status;
     this.status = status;
-    console.log(`WebSocket status changed: ${prevStatus} -> ${status}`);
+    logger.ws(`Status changed: ${prevStatus} -> ${status}`);
     this.onStatusChangeCallbacks.forEach(callback => callback(status));
   }
 
@@ -119,11 +120,11 @@ export class ServerWebSocketClient {
       throw new Error('WebSocket not connected');
     }
 
-    console.log('Starting authentication process...');
+    logger.auth('Starting authentication process...');
 
     // Helper function to sign messages
     const sign = async (message) => {
-      console.log(`Signing message: ${typeof message === 'string' ? message.slice(0, 50) : JSON.stringify(message).slice(0, 50)}...`);
+      logger.auth(`Signing message: ${typeof message === 'string' ? message.slice(0, 50) : JSON.stringify(message).slice(0, 50)}...`);
       
       const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
       const digestHex = ethers.id(messageStr);
@@ -138,10 +139,10 @@ export class ServerWebSocketClient {
       const authRequest = async () => {
         try {
           const request = await createAuthRequestMessage(sign, this.address);
-          console.log('Sending auth request:', request.slice(0, 100) + '...');
+          logger.auth('Sending auth request:', request.slice(0, 100) + '...');
           this.ws.send(request);
         } catch (error) {
-          console.error('Error creating auth request:', error);
+          logger.error('Error creating auth request:', error);
           reject(error);
         }
       };
@@ -149,30 +150,49 @@ export class ServerWebSocketClient {
       // Set up response handler
       const handleAuthResponse = async (data) => {
         try {
-          console.log(`Received authentication response: ${data.slice(0, 100)}...`);
+          logger.auth(`Received authentication response: ${data.slice(0, 100)}...`);
           
           const response = JSON.parse(data);
 
           if (response.res && response.res[1] === 'auth_challenge') {
-            console.log('Received auth challenge, sending verification...');
+            logger.auth('Received auth challenge, sending verification...');
             const authVerify = await createAuthVerifyMessage(sign, data, this.address);
-            console.log(`Sending auth verification: ${authVerify.slice(0, 100)}...`);
+            logger.auth(`Sending auth verification: ${authVerify.slice(0, 100)}...`);
             this.ws.send(authVerify);
           } else if (response.res && response.res[1] === 'auth_verify') {
-            console.log('Authentication successful!');
+            logger.auth('Authentication successful!');
             this.ws.removeListener('message', authMessageHandler);
             
-            // Request channel information for our address
-            await this.getChannelInfo();
+            // Make sure status is set to CONNECTED before making any requests
+            this.setStatus(WSStatus.CONNECTED);
+            
+            try {
+              // Request channel information for our address and check if we need to create one
+              const channels = await this.getChannelInfo();
+              
+              // Check if we have valid channels
+              const hasValidChannel = channels && 
+                               Array.isArray(channels) && 
+                               channels.length > 0 && 
+                               channels[0] !== null;
+                               
+              if (!hasValidChannel) {
+                logger.nitro('No valid channels found after authentication, will create one');
+                // We'll let the main initializeNitroliteChannel function handle creation
+              }
+            } catch (error) {
+              logger.error('Failed to get channel info, continuing anyway:', error);
+              // Continue with authentication even if channel info fails
+            }
             
             resolve();
           } else if (response.err) {
-            console.error('Authentication error:', response.err);
+            logger.error('Authentication error:', response.err);
             this.ws.removeListener('message', authMessageHandler);
             reject(new Error(response.err[2] || 'Authentication failed'));
           }
         } catch (error) {
-          console.error('Error handling auth response:', error);
+          logger.error('Error handling auth response:', error);
           this.ws.removeListener('message', authMessageHandler);
           reject(error);
         }
@@ -198,10 +218,12 @@ export class ServerWebSocketClient {
   // Handle incoming WebSocket messages
   handleMessage(data) {
     try {
-      const message = JSON.parse(data);
-      console.log(`Received message: ${JSON.stringify(message, null, 2)}`);
+      // Ensure data is properly handled as string
+      const rawData = typeof data === 'string' ? data : data.toString();
+      const message = JSON.parse(rawData);
+      logger.data('Received message', message);
 
-      // Notify callbacks
+      // Notify callbacks first to allow for authentication handling
       this.onMessageCallbacks.forEach(callback => callback(message));
 
       // Handle response to pending requests
@@ -226,25 +248,40 @@ export class ServerWebSocketClient {
 
       // Handle channel-specific messages
       if (message.type === 'channel_created') {
-        console.log('Channel created successfully:', message.channel);
+        logger.nitro('Channel created successfully');
+        logger.data('Channel data', message.channel);
         this.channel = message.channel;
       }
     } catch (error) {
-      console.error('Error handling message:', error);
+      logger.error('Error handling message:', error);
     }
   }
 
   // Send a request to the WebSocket server
   async sendRequest(method, params = {}) {
-    if (!this.ws || this.status !== WSStatus.CONNECTED) {
-      throw new Error('WebSocket not connected');
+    if (!this.ws) {
+      throw new Error('WebSocket instance not initialized');
+    }
+    
+    if (this.ws.readyState !== WebSocket.OPEN) {
+      logger.error(`WebSocket not in OPEN state. Current state: ${this.ws.readyState}, Status: ${this.status}`);
+      throw new Error(`WebSocket not in OPEN state. Current readyState: ${this.ws.readyState}`);
+    }
+    
+    if (this.status !== WSStatus.CONNECTED) {
+      logger.warn(`WebSocket status is ${this.status}, should be ${WSStatus.CONNECTED}. Proceeding anyway.`);
+      // Set the status to CONNECTED if it's in AUTHENTICATING but we've passed authentication
+      if (this.status === WSStatus.AUTHENTICATING) {
+        logger.system('Fixing status to CONNECTED for authenticated connection');
+        this.setStatus(WSStatus.CONNECTED);
+      }
     }
 
     const requestId = this.nextRequestId++;
     
     // Helper function to sign messages
     const sign = async (message) => {
-      console.log(`Signing request message: ${typeof message === 'string' ? message.slice(0, 50) : JSON.stringify(message).slice(0, 50)}...`);
+      logger.auth(`Signing request message: ${typeof message === 'string' ? message.slice(0, 50) : JSON.stringify(message).slice(0, 50)}...`);
       
       const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
       const digestHex = ethers.id(messageStr);
@@ -260,7 +297,7 @@ export class ServerWebSocketClient {
         const request = NitroliteRPC.createRequest(requestId, method, params);
         const signedRequest = await NitroliteRPC.signRequestMessage(request, sign);
         
-        console.log(`Sending request: ${JSON.stringify(signedRequest).slice(0, 100)}...`);
+        logger.ws(`Sending request: ${JSON.stringify(signedRequest).slice(0, 100)}...`);
         
         this.pendingRequests.set(requestId, { resolve, reject });
         
@@ -274,7 +311,7 @@ export class ServerWebSocketClient {
         
         this.ws.send(typeof signedRequest === 'string' ? signedRequest : JSON.stringify(signedRequest));
       } catch (error) {
-        console.error('Error sending request:', error);
+        logger.error('Error sending request:', error);
         this.pendingRequests.delete(requestId);
         reject(error);
       }
@@ -299,10 +336,10 @@ export class ServerWebSocketClient {
           };
           
           const pingMessage = await createPingMessage(sign);
-          console.log('Sending ping...');
+          logger.ws('Sending ping...');
           this.ws.send(pingMessage);
         } catch (error) {
-          console.error('Error sending ping:', error);
+          logger.error('Error sending ping:', error);
         }
       }
     }, 30000);
@@ -311,7 +348,7 @@ export class ServerWebSocketClient {
   // Handle reconnection
   handleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('Maximum reconnect attempts reached');
+      logger.ws('Maximum reconnect attempts reached');
       this.setStatus(WSStatus.RECONNECT_FAILED);
       return;
     }
@@ -319,7 +356,7 @@ export class ServerWebSocketClient {
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * this.reconnectAttempts;
     
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+    logger.ws(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
     this.setStatus(WSStatus.RECONNECTING);
     
     clearTimeout(this.reconnectTimeout);
@@ -338,27 +375,66 @@ export class ServerWebSocketClient {
       this.ws = null;
     }
     
-    console.log('WebSocket connection closed manually');
+    logger.ws('WebSocket connection closed manually');
     this.setStatus(WSStatus.DISCONNECTED);
   }
 
   // Get channel information
   async getChannelInfo() {
     try {
-      console.log('Requesting channel information...');
-      const channels = await this.sendRequest('get_channels', [{ participant: this.address }]);
-      console.log('Channel info received:', channels);
+      logger.nitro('Requesting channel information...');
+      const response = await this.sendRequest('get_channels', [{ participant: this.address }]);
+      logger.data('Channel info received', response);
       
-      if (channels && channels.length > 0) {
-        console.log(`Found ${channels.length} existing channels`);
-        this.channel = channels[0];
-      } else {
-        console.log('No existing channels found');
+      // Debug the raw response
+      logger.system('Debug - Raw channel response:');
+      logger.system(`- response type: ${typeof response}`);
+      logger.system(`- is array: ${Array.isArray(response)}`);
+      logger.system(`- stringified: ${JSON.stringify(response)}`);
+      
+      // Check if we need to unwrap the response
+      let channels = response;
+      
+      if (Array.isArray(response) && response.length === 1 && response[0] === null) {
+        logger.system('Debug - Got array with single null item');
       }
       
-      return channels;
+      // Check if we have valid channels
+      if (channels && Array.isArray(channels) && channels.length > 0 && channels[0] !== null) {
+        logger.nitro(`Found ${channels.length} valid existing channels`);
+        this.channel = channels[0];
+        return channels;
+      } 
+      
+      logger.nitro('No valid channels found, creating a new one now');
+      
+      // Try to initialize the client if not already done
+      if (!this.nitroliteClient) {
+        logger.nitro('Initializing Nitrolite client for channel creation...');
+        await this.initializeNitroliteClient();
+      }
+      
+      // Create a channel in response to getChannelInfo
+      try {
+        logger.nitro('Creating new channel from getChannelInfo...');
+        const result = await this.createChannel();
+        logger.nitro('Successfully created channel in response to getChannelInfo');
+        logger.data('New channel created', result);
+        
+        // Make sure to set the channel
+        if (result && result.channel) {
+          this.channel = result.channel;
+        }
+        
+        // Return an array with the newly created channel
+        return [this.channel];
+      } catch (channelError) {
+        logger.error('Failed to create channel in getChannelInfo response:', channelError);
+        // Still return an empty array
+        return [];
+      }
     } catch (error) {
-      console.error('Error getting channel info:', error);
+      logger.error('Error getting channel info:', error);
       throw error;
     }
   }
@@ -366,7 +442,7 @@ export class ServerWebSocketClient {
   // Initialize Nitrolite client for channel creation
   async initializeNitroliteClient() {
     try {
-      console.log('Initializing Nitrolite client...');
+      logger.nitro('Initializing Nitrolite client...');
       
       // Create client instances required by Nitrolite
       const publicClient = createPublicClient({
@@ -374,24 +450,9 @@ export class ServerWebSocketClient {
         chain: polygon,
       });
 
-      // Create custom JSON-RPC provider
-      const customProvider = {
-        request: async ({ method, params }) => {
-          console.log(`JSON-RPC call: ${method}`, params);
-          // Implement minimal RPC functionality needed
-          if (method === 'eth_chainId') {
-            return '0x' + Number(process.env.CHAIN_ID).toString(16);
-          }
-          if (method === 'eth_accounts') {
-            return [this.address];
-          }
-          throw new Error(`Unsupported method: ${method}`);
-        }
-      };
-      
       // Create wallet client
       const walletClient = createWalletClient({
-        transport: custom(customProvider),
+        transport: http(process.env.POLYGON_RPC_URL),
         chain: polygon,
         account: this.address,
       });
@@ -402,7 +463,7 @@ export class ServerWebSocketClient {
           address: this.address,
         },
         signMessage: async ({ message }) => {
-          console.log(`Signing state wallet message: ${typeof message === 'object' ? JSON.stringify(message).slice(0, 50) : message.slice(0, 50)}...`);
+          logger.auth(`Signing state wallet message: ${typeof message === 'object' ? JSON.stringify(message).slice(0, 50) : message.slice(0, 50)}...`);
           const messageToSign = typeof message === 'object' && message.raw ? message.raw : message;
           
           const messageStr = typeof messageToSign === 'string' ? messageToSign : JSON.stringify(messageToSign);
@@ -434,37 +495,50 @@ export class ServerWebSocketClient {
         addresses,
       });
       
-      console.log('Nitrolite client initialized successfully');
+      logger.nitro('Nitrolite client initialized successfully');
       return this.nitroliteClient;
       
     } catch (error) {
-      console.error('Error initializing Nitrolite client:', error);
+      logger.error('Error initializing Nitrolite client:', error);
       throw error;
     }
   }
 
-  // Create a new channel with 0 USDC
+  // Create a new channel
   async createChannel() {
     try {
       if (!this.nitroliteClient) {
+        logger.nitro('Nitrolite client not initialized, initializing now...');
         await this.initializeNitroliteClient();
       }
       
-      console.log('Creating new channel with 0 USDC...');
+      if (!this.nitroliteClient) {
+        throw new Error('Failed to initialize Nitrolite client for channel creation');
+      }
       
-      const result = await this.nitroliteClient.createChannel({
-        initialAllocationAmounts: [BigInt(0), BigInt(0)],
-        stateData: '0x', // Empty state data
-      });
+      logger.nitro('Creating new channel without deposit...');
       
-      console.log('Channel created successfully:', result);
-      
-      // Store channel information
-      this.channel = result.channel;
-      
-      return result;
+      try {
+        // Try the direct method with no deposit
+        const result = await this.nitroliteClient.createChannel({
+          initialAllocationAmounts: [BigInt(0), BigInt(0)],
+          stateData: '0x', // Empty state data
+        });
+        
+        logger.nitro('Channel created successfully');
+        logger.data('Channel result', result);
+        
+        // Store channel information
+        this.channel = result.channel;
+        
+        return result;
+      } catch (error) {
+        // Log the error and don't attempt with deposit
+        logger.error('Channel creation failed:', error);
+        throw error;
+      }
     } catch (error) {
-      console.error('Error creating channel:', error);
+      logger.error('Channel creation failed:', error);
       throw error;
     }
   }
@@ -474,50 +548,66 @@ export class ServerWebSocketClient {
 let wsClient = null;
 
 export async function initializeClient() {
+  logger.system('Initializing WebSocket client...');
   if (wsClient) {
+    logger.system('WebSocket client already initialized, returning existing instance...');
     return wsClient;
   }
   
-  console.log('Initializing WebSocket client...');
-  
-  if (!process.env.SERVER_PRIVATE_KEY) {
-    throw new Error('SERVER_PRIVATE_KEY environment variable is not set');
-  }
-  
-  if (!process.env.WS_URL) {
-    throw new Error('WS_URL environment variable is not set');
-  }
-  
-  wsClient = new ServerWebSocketClient(
-    process.env.WS_URL,
-    process.env.SERVER_PRIVATE_KEY
-  );
-  
-  // Log all WebSocket messages
-  wsClient.onMessage((message) => {
-    console.log('WS Message:', JSON.stringify(message, null, 2));
-  });
-  
-  // Log status changes
-  wsClient.onStatusChange((status) => {
-    console.log('WebSocket status changed:', status);
-  });
-  
-  // Connect to the WebSocket server
-  await wsClient.connect();
-  
-  // Initialize Nitrolite client
-  await wsClient.initializeNitroliteClient();
-  
-  // Get existing channels or create a new one
-  const channels = await wsClient.getChannelInfo();
-  
-  if (!channels || channels.length === 0) {
-    console.log('No channels found, creating a new channel...');
-    await wsClient.createChannel();
-  } else {
-    console.log('Using existing channel:', channels[0]);
-    wsClient.channel = channels[0];
+  try {
+    logger.system('Initializing WebSocket client...');
+    
+    if (!process.env.SERVER_PRIVATE_KEY) {
+      throw new Error('SERVER_PRIVATE_KEY environment variable is not set');
+    }
+    
+    if (!process.env.WS_URL) {
+      throw new Error('WS_URL environment variable is not set');
+    }
+    
+    wsClient = new ServerWebSocketClient(
+      process.env.WS_URL,
+      process.env.SERVER_PRIVATE_KEY
+    );
+    
+    // Log all WebSocket messages
+    wsClient.onMessage((message) => {
+      logger.ws('WS Message:', JSON.stringify(message, null, 2));
+    });
+    
+    // Log status changes
+    wsClient.onStatusChange((status) => {
+      logger.ws('Status changed:', status);
+    });
+    
+    // Connect to the WebSocket server
+    await wsClient.connect();
+    
+    // Initialize Nitrolite client for UAT
+    await wsClient.initializeNitroliteClient();
+    
+    // Get existing channels
+    logger.system('Checking for existing channels...');
+    const channels = await wsClient.getChannelInfo();
+    
+    // Check if we have valid channels
+    const hasValidChannel = channels && 
+                          Array.isArray(channels) && 
+                          channels.length > 0 && 
+                          channels[0] !== null;
+    
+    if (hasValidChannel) {
+      logger.nitro(`Found ${channels.length} existing valid channels`);
+      logger.data('Channel data', channels[0]);
+      wsClient.channel = channels[0];
+    } else {
+      // Log that no valid channels found - channel creation will be handled by getChannelInfo
+      logger.nitro('No valid channels found in initializeClient');
+      // We won't create a channel here - it should be handled by getChannelInfo
+    }
+  } catch (error) {
+    logger.error('Error during initialization:', error);
+    // Continue anyway - the server can still function for basic operations
   }
   
   return wsClient;

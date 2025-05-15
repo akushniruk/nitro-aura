@@ -3,7 +3,7 @@
  */
 
 import { validateMovePayload } from '../utils/validators.js';
-import { formatGameState, formatGameOverMessage, createGame } from '../services/ticTacToe.js';
+import { formatGameState, formatGameOverMessage, createGame } from '../services/index.js';
 
 /**
  * Handles a start game request

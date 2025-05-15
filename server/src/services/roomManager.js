@@ -3,7 +3,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { makeMove } from './ticTacToe.js';
+import { makeMove } from './index.js';
 
 /**
  * @typedef {Object} Room

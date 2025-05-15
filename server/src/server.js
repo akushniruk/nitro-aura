@@ -3,10 +3,10 @@
  */
 
 import { createWebSocketServer, sendError, startPingInterval } from './config/websocket.js';
-import { initializeClient } from './services/nitroliteClient.js';
-import { createRoomManager } from './services/roomManager.js';
+import { initializeRPCClient, createRoomManager } from './services/index.js';
 import { handleJoinRoom, handleGetAvailableRooms } from './routes/roomRoutes.js';
 import { handleStartGame, handleMove } from './routes/gameRoutes.js';
+import logger from './utils/logger.js';
 
 // Create WebSocket server
 const wss = createWebSocketServer();
@@ -24,7 +24,7 @@ const context = {
 };
 
 wss.on('connection', (ws) => {
-  console.log('Client connected');
+  logger.ws('Client connected');
   
   // Handle client messages
   ws.on('message', (message) => {
@@ -70,36 +70,40 @@ wss.on('connection', (ws) => {
         break;
       }
     }
-    console.log('Client disconnected');
+    logger.ws('Client disconnected');
   });
 });
 
 // Initialize Nitrolite client and channel when server starts
-async function initializeNitroliteChannel() {
+async function initializeNitroliteServices() {
   try {
-    console.log('Initializing Nitrolite client and channel...');
-    const client = await initializeClient();
-    console.log('Nitrolite client initialized successfully');
+    logger.nitro('Initializing Nitrolite services...');
+    const rpcClient = await initializeRPCClient();
+    logger.nitro('Nitrolite RPC client initialized successfully');
     
-    if (client.channel) {
-      console.log('Connected to existing channel:', client.channel);
+    // Check if we have an existing channel
+    if (rpcClient.channel) {
+      logger.nitro('Connected to existing channel');
+      logger.data('Channel info', rpcClient.channel);
     } else {
-      console.log('No channel established. Something went wrong during initialization.');
+      logger.warn('No channel established after initialization');
+      logger.nitro('Channels will be created as needed via getChannelInfo');
     }
   } catch (error) {
-    console.error('Failed to initialize Nitrolite client and channel:', error);
+    logger.error('Failed to initialize Nitrolite services:', error);
+    logger.system('Continuing in mock mode without Nitrolite channel');
   }
 }
 
 // Start server
 const port = process.env.PORT || 8080;
-console.log(`WebSocket server starting on port ${port}`);
+logger.system(`WebSocket server starting on port ${port}`);
 
 // Initialize Nitrolite client and channel
-initializeNitroliteChannel().then(() => {
-  console.log('Server initialization complete');
+initializeNitroliteServices().then(() => {
+  logger.system('Server initialization complete');
 }).catch(error => {
-  console.error('Server initialization failed:', error);
+  logger.error('Server initialization failed:', error);
 });
 
 // Start keepalive mechanism

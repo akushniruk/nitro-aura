@@ -3,7 +3,7 @@
  */
 
 import { validateJoinRoomPayload } from '../utils/validators.js';
-import { formatGameState } from '../services/ticTacToe.js';
+import { formatGameState } from '../services/index.js';
 
 /**
  * Handles a request to join a room
