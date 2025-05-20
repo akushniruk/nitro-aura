@@ -39,6 +39,9 @@ export async function createAppSession(roomId, participantA, participantB) {
       throw new Error('Token address not set in environment variables');
     }
     
+    // Define the deposit amount (use '0' for free games or actual amount for paid games)
+    const amount = '0'; // Set this to the appropriate amount if needed
+    
     // Create app definition
     const appDefinition = {
       protocol: "app_aura_nitrolite_v0",
@@ -49,9 +52,6 @@ export async function createAppSession(roomId, participantA, participantB) {
       nonce: Date.now(),
     };
     
-    // Initial allocations and intent
-    const initialIntent = [0, 0, 0];
-    
     // Use the RPC client's signMessage method for consistent signing
     const sign = rpcClient.signMessage.bind(rpcClient);
     
@@ -61,11 +61,25 @@ export async function createAppSession(roomId, participantA, participantB) {
       [
         {
           definition: appDefinition,
-          token: tokenAddress,
-          allocations: [0, 0, 0],
+          allocations: [
+            {
+              participant: participantA,
+              asset: 'usdc',
+              amount: amount,
+            },
+            {
+              participant: participantB,
+              asset: 'usdc',
+              amount: '0',
+            },
+            {
+              participant: serverAddress,
+              asset: 'usdc',
+              amount: '0',
+            },
+          ]
         },
-      ],
-      initialIntent
+      ]
     );
     logger.data(`Signed app session message for room ${roomId}:`, signedMessage);
     // Send the message directly using ws.send, similar to authentication
@@ -123,7 +137,7 @@ export async function createAppSession(roomId, participantA, participantB) {
     logger.data(`App session creation response for room ${roomId}:`, response);
     
     // The response structure might vary, adapt this based on actual response
-    const appId = response?.app_id || response?.[0]?.app_id;
+    const appId = response?.app_session_id || response?.[0]?.app_session_id;
     
     if (!appId) {
       throw new Error('Failed to get app ID from response');
@@ -177,11 +191,36 @@ export async function closeAppSession(roomId, allocations = [0, 0, 0]) {
     if (!rpcClient) {
       throw new Error('RPC client not initialized');
     }
+
+    // Extract participant addresses from the stored app session
+    const { participantA, participantB, serverAddress } = appSession;
+
+    // Check if we have all the required participants
+    if (!participantA || !participantB || !serverAddress) {
+      throw new Error('Missing participant information in app session');
+    }
+
+    const finalAllocations = [
+      {
+        participant: participantA,
+        asset: 'usdc',
+        amount: allocations[0].toString(),
+      },
+      {
+        participant: participantB,
+        asset: 'usdc',
+        amount: allocations[1].toString(),
+      },
+      {
+        participant: serverAddress,
+        asset: 'usdc',
+        amount: allocations[2].toString(),
+      },
+    ];
     
     // Final allocations and close request
-    const finalAllocations = allocations;
     const closeRequest = {
-      app_id: appId,
+      app_session_id: appId,
       allocations: finalAllocations,
     };
     const finalIntent = finalAllocations;

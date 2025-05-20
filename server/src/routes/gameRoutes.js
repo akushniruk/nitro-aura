@@ -153,8 +153,8 @@ export async function handleMove(ws, payload, { roomManager, connections, sendEr
         logger.nitro(`Closing app session with ID ${room.appId} for room ${roomId}`);
         
         // Create the final allocations based on the game result
-        // In this example, we're just using [0,0,0] but you might want to implement
-        // actual token allocations based on the game outcome
+        // Currently using all zeroes, but you might implement actual token allocations
+        // based on the game outcome in the future
         const finalAllocations = [0, 0, 0];
         
         await closeAppSession(roomId, finalAllocations);

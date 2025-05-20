@@ -68,8 +68,15 @@ function App() {
 
         if (combinedError) {
             console.log("Error detected:", combinedError);
-            setShowError(true);
-            setErrorDisplay(combinedError);
+            
+            // Don't show error modal for MetaMask connection message
+            if (combinedError === "MetaMask not connected. Please connect your wallet.") {
+                setShowError(false);
+                setErrorDisplay(null);
+            } else {
+                setShowError(true);
+                setErrorDisplay(combinedError);
+            }
         } else {
             setShowError(false);
             setErrorDisplay(null);
