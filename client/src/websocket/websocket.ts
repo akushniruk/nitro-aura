@@ -65,6 +65,11 @@ const AUTH_TYPES = {
         { name: "address", type: "address" },
         { name: "challenge", type: "string" },
         { name: "session_key", type: "address" },
+        { name: "allowances", type: "Allowance[]" },
+    ],
+    Allowance: [
+        { name: "asset", type: "string" },
+        { name: "amount", type: "uint256" },
     ],
 };
 
@@ -148,6 +153,12 @@ function createEIP712SigningFunction(stateSigner: WalletSigner) {
             address: ethers.getAddress(address as string), // Ensure proper checksum format
             challenge: challengeUUID,
             session_key: ethers.getAddress(stateSigner.address), // Ensure proper checksum format
+            allowances: [
+                {
+                    symbol: "usdc",
+                    amount: "100000000000",
+                },
+            ],
         };
 
         console.log("EIP-712 message to sign:", message);
@@ -375,6 +386,12 @@ export class WebSocketClient {
             address: ethers.getAddress(walletClient?.account?.address as string) as `0x${string}`,
             session_key: ethers.getAddress(this.signer.address) as `0x${string}`,
             app_name: "Nitro Aura",
+            allowances: [
+                {
+                    symbol: "usdc",
+                    amount: "100000000000",
+                },
+            ],
         });
 
         this.ws.send(authRequest);
@@ -398,21 +415,13 @@ export class WebSocketClient {
                 try {
                     if (response.res && response.res[1] === "auth_challenge") {
                         // walletClient is already available from the authenticate method scope
-                        // Handle challenge response
-                        const verifyAuthParams = {
-                            address: ethers.getAddress(walletClient.account?.address as string) as `0x${string}`,
-                            session_key: ethers.getAddress(this.signer.address) as `0x${string}`,
-                            app_name: "Nitro Aura",
-                            challenge: event.data,
-                        };
                         const eip712SigningFunction = createEIP712SigningFunction(this.signer);
 
                         console.log("Calling createAuthVerifyMessage...");
                         // Create and send verification message with EIP-712 signature
                         const authVerify = await createAuthVerifyMessage(
                             eip712SigningFunction,
-                            event.data, // Pass the raw challenge response string/object
-                            verifyAuthParams
+                            event.data // Pass the raw challenge response string/object
                         );
 
                         this.ws?.send(authVerify);
