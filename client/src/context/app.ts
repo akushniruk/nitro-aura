@@ -22,13 +22,13 @@ export const APP_CONFIG = {
     },
 
     CUSTODIES: {
-        137: "0x1096644156Ed58BF596e67d35827Adc97A25D940" as Address,
+        137: "0xc2F8Fca0A2dFa200728D3dae130dF6065b7da986" as Address,
     },
 
     DEFAULT_ADJUDICATOR: "dummy",
 
     ADJUDICATORS: {
-        137: "0xa3f2f64455c9f8D68d9dCAeC2605D64680FaF898" as Address,
+        137: "0x5F4A4B1D293A973a1Bc0daD3BB3692Bd51058FCF" as Address,
     },
 };
 

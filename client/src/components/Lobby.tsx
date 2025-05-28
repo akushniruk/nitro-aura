@@ -296,7 +296,7 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
                                         variant="glowCyan"
                                         size="xl"
                                         className="w-full"
-                                        disabled={isConnecting || !isConnected}
+                                        disabled={isConnecting}
                                     >
                                         {isConnecting ? (
                                             <>
@@ -312,13 +312,6 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
                                     </Button>
 
                                     {metamaskError && <p className="mt-4 text-sm text-red-400">{metamaskError}</p>}
-
-                                    {!isConnected && (
-                                        <p className="mt-4 text-sm text-amber-400">
-                                            <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />
-                                            Connecting to game server...
-                                        </p>
-                                    )}
                                 </div>
                             </div>
                         </div>

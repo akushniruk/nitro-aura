@@ -77,7 +77,7 @@ export async function initializeNitroliteOnChain(privateKey) {
       stateWalletClient,
       account: address,
       chainId: Number(process.env.CHAIN_ID),
-      challengeDuration: BigInt(1), // Use the same value as the client
+      challengeDuration: BigInt(3600), // Use the same value as the client
       addresses,
     });
     

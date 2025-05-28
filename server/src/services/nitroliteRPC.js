@@ -9,6 +9,23 @@ import dotenv from 'dotenv';
 import logger from '../utils/logger.js';
 import { getNitroliteOnChainClient, createChannel } from './nitroliteOnChain.js';
 
+/**
+ * EIP-712 domain and types for auth_verify challenge
+ */
+const getAuthDomain = () => {
+    return {
+        name: 'Nitro Aura',
+    };
+};
+
+const AUTH_TYPES = {
+    AuthVerify: [
+        { name: 'address', type: 'address' },
+        { name: 'challenge', type: 'string' },
+        { name: 'session_key', type: 'address' },
+    ],
+};
+
 // Load environment variables
 dotenv.config();
 
@@ -115,16 +132,123 @@ export class NitroliteRPCClient {
   }
 
   // Sign message function that can be reused across the client
-  async signMessage(message) {
-    logger.auth(`Signing message: ${typeof message === 'string' ? message.slice(0, 50) : JSON.stringify(message).slice(0, 50)}...`);
+  async signMessage(data) {
+    logger.auth(`Signing message: ${typeof data === 'string' ? data.slice(0, 50) : JSON.stringify(data).slice(0, 50)}...`);
     
-    const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
-    const digestHex = ethers.id(messageStr);
-    const messageBytes = ethers.getBytes(digestHex);
-    
-    const { serialized: signature } = this.wallet.signingKey.sign(messageBytes);
-    
-    return signature;
+    let challengeUUID = '';
+    const address = this.address;
+
+    // The data coming in is the array from createAuthVerifyMessage
+    // Format: [timestamp, "auth_verify", [{"address": "0x...", "challenge": "uuid"}], timestamp]
+    if (Array.isArray(data)) {
+        logger.auth('Data is array, extracting challenge from position [2][0].challenge');
+
+        // Direct array access - data[2] should be the array with the challenge object
+        if (data.length >= 3 && Array.isArray(data[2]) && data[2].length > 0) {
+            const challengeObject = data[2][0];
+
+            if (challengeObject && challengeObject.challenge) {
+                challengeUUID = challengeObject.challenge;
+                logger.auth('Extracted challenge UUID from array:', challengeUUID);
+            }
+        }
+    } else if (typeof data === 'string') {
+        try {
+            const parsed = JSON.parse(data);
+
+            logger.auth('Parsed challenge data:', parsed);
+
+            // Handle different message structures
+            if (parsed.res && Array.isArray(parsed.res)) {
+                // auth_challenge response: {"res": [id, "auth_challenge", {"challenge": "uuid"}, timestamp]}
+                if (parsed.res[1] === 'auth_challenge' && parsed.res[2]) {
+                    challengeUUID = parsed.res[2].challenge_message || parsed.res[2].challenge;
+                    logger.auth('Extracted challenge UUID from auth_challenge:', challengeUUID);
+                }
+                // auth_verify message: [timestamp, "auth_verify", [{"address": "0x...", "challenge": "uuid"}], timestamp]
+                else if (parsed.res[1] === 'auth_verify' && Array.isArray(parsed.res[2]) && parsed.res[2][0]) {
+                    challengeUUID = parsed.res[2][0].challenge;
+                    logger.auth('Extracted challenge UUID from auth_verify:', challengeUUID);
+                }
+            }
+            // Direct array format
+            else if (Array.isArray(parsed) && parsed.length >= 3 && Array.isArray(parsed[2])) {
+                challengeUUID = parsed[2][0]?.challenge;
+                logger.auth('Extracted challenge UUID from direct array:', challengeUUID);
+            }
+        } catch (e) {
+            logger.error('Could not parse challenge data:', e);
+            logger.auth('Using raw string as challenge');
+            challengeUUID = data;
+        }
+    } else if (data && typeof data === 'object') {
+        // If data is already an object, try to extract challenge
+        challengeUUID = data.challenge || data.challenge_message;
+        logger.auth('Extracted challenge from object:', challengeUUID);
+    }
+
+    if (!challengeUUID || challengeUUID.includes('[') || challengeUUID.includes('{')) {
+        logger.error('Challenge extraction failed or contains invalid characters:', challengeUUID);
+        
+        // Fallback to regular signing for non-auth messages
+        if (!challengeUUID) {
+            logger.auth('No challenge found, using regular message signing');
+            const messageStr = typeof data === 'string' ? data : JSON.stringify(data);
+            const digestHex = ethers.id(messageStr);
+            const messageBytes = ethers.getBytes(digestHex);
+            
+            const { serialized: signature } = this.wallet.signingKey.sign(messageBytes);
+            return signature;
+        }
+        
+        throw new Error('Could not extract valid challenge UUID for EIP-712 signing');
+    }
+
+    logger.auth('Final challenge UUID for EIP-712:', challengeUUID);
+    logger.auth('Signing for address:', address);
+    logger.auth('Auth domain:', getAuthDomain());
+
+    // Create EIP-712 message with ONLY the challenge UUID
+    const message = {
+        address: address,
+        challenge: challengeUUID,
+        session_key: address, // Using wallet address as session key for server
+    };
+
+    logger.auth('EIP-712 message to sign:', message);
+
+    try {
+        // Sign with EIP-712 using ethers
+        const signature = await this.wallet.signTypedData(
+            getAuthDomain(),
+            AUTH_TYPES,
+            message
+        );
+
+        logger.auth('EIP-712 signature generated for challenge:', signature);
+        return signature;
+    } catch (eip712Error) {
+        logger.error('EIP-712 signing failed:', eip712Error);
+        logger.auth('Attempting fallback to regular message signing...');
+
+        try {
+            // Fallback to regular message signing if EIP-712 fails
+            const fallbackMessage = `Authentication challenge for ${address}: ${challengeUUID}`;
+
+            logger.auth('Fallback message:', fallbackMessage);
+
+            const digestHex = ethers.id(fallbackMessage);
+            const messageBytes = ethers.getBytes(digestHex);
+            
+            const { serialized: fallbackSignature } = this.wallet.signingKey.sign(messageBytes);
+
+            logger.auth('Fallback signature generated:', fallbackSignature);
+            return fallbackSignature;
+        } catch (fallbackError) {
+            logger.error('Fallback signing also failed:', fallbackError);
+            throw new Error(`Both EIP-712 and fallback signing failed: ${eip712Error.message}`);
+        }
+    }
   }
 
   // Authenticate with WebSocket server
@@ -141,7 +265,11 @@ export class NitroliteRPCClient {
     return new Promise((resolve, reject) => {
       const authRequest = async () => {
         try {
-          const request = await createAuthRequestMessage(sign, this.address);
+          const request = await createAuthRequestMessage({
+            address: this.address,
+            session_key: this.address,
+            app_name: "Nitro Aura",
+        });
           logger.auth('Sending auth request:', request.slice(0, 100) + '...');
           this.ws.send(request);
         } catch (error) {
@@ -159,7 +287,119 @@ export class NitroliteRPCClient {
 
           if (response.res && response.res[1] === 'auth_challenge') {
             logger.auth('Received auth challenge, sending verification...');
-            const authVerify = await createAuthVerifyMessage(sign, data, this.address);
+
+            // Create EIP-712 signing function that matches the React implementation
+            const eip712SigningFunction = async (data) => {
+              logger.auth('Signing auth_verify challenge with EIP-712:', data);
+
+              let challengeUUID = '';
+              const address = this.address;
+
+              // The data coming in is the array from createAuthVerifyMessage
+              // Format: [timestamp, "auth_verify", [{"address": "0x...", "challenge": "uuid"}], timestamp]
+              if (Array.isArray(data)) {
+                logger.auth('Data is array, extracting challenge from position [2][0].challenge');
+
+                // Direct array access - data[2] should be the array with the challenge object
+                if (data.length >= 3 && Array.isArray(data[2]) && data[2].length > 0) {
+                  const challengeObject = data[2][0];
+
+                  if (challengeObject && challengeObject.challenge) {
+                    challengeUUID = challengeObject.challenge;
+                    logger.auth('Extracted challenge UUID from array:', challengeUUID);
+                  }
+                }
+              } else if (typeof data === 'string') {
+                try {
+                  const parsed = JSON.parse(data);
+                  logger.auth('Parsed challenge data:', parsed);
+
+                  // Handle different message structures
+                  if (parsed.res && Array.isArray(parsed.res)) {
+                    // auth_challenge response: {"res": [id, "auth_challenge", {"challenge": "uuid"}, timestamp]}
+                    if (parsed.res[1] === 'auth_challenge' && parsed.res[2]) {
+                      challengeUUID = parsed.res[2].challenge_message || parsed.res[2].challenge;
+                      logger.auth('Extracted challenge UUID from auth_challenge:', challengeUUID);
+                    }
+                    // auth_verify message: [timestamp, "auth_verify", [{"address": "0x...", "challenge": "uuid"}], timestamp]
+                    else if (parsed.res[1] === 'auth_verify' && Array.isArray(parsed.res[2]) && parsed.res[2][0]) {
+                      challengeUUID = parsed.res[2][0].challenge;
+                      logger.auth('Extracted challenge UUID from auth_verify:', challengeUUID);
+                    }
+                  }
+                  // Direct array format
+                  else if (Array.isArray(parsed) && parsed.length >= 3 && Array.isArray(parsed[2])) {
+                    challengeUUID = parsed[2][0]?.challenge;
+                    logger.auth('Extracted challenge UUID from direct array:', challengeUUID);
+                  }
+                } catch (e) {
+                  logger.error('Could not parse challenge data:', e);
+                  logger.auth('Using raw string as challenge');
+                  challengeUUID = data;
+                }
+              } else if (data && typeof data === 'object') {
+                // If data is already an object, try to extract challenge
+                challengeUUID = data.challenge || data.challenge_message;
+                logger.auth('Extracted challenge from object:', challengeUUID);
+              }
+
+              if (!challengeUUID || challengeUUID.includes('[') || challengeUUID.includes('{')) {
+                logger.error('Challenge extraction failed or contains invalid characters:', challengeUUID);
+                throw new Error('Could not extract valid challenge UUID for EIP-712 signing');
+              }
+
+              logger.auth('Final challenge UUID for EIP-712:', challengeUUID);
+              logger.auth('Signing for address:', address);
+              logger.auth('Auth domain:', getAuthDomain());
+
+              // Create EIP-712 message with ONLY the challenge UUID
+              const message = {
+                address: address,
+                challenge: challengeUUID,
+                session_key: this.address, // Using wallet address as session key for server
+              };
+
+              logger.auth('EIP-712 message to sign:', message);
+
+              try {
+                // Sign with EIP-712 using ethers
+                const signature = await this.wallet.signTypedData(
+                  getAuthDomain(),
+                  AUTH_TYPES,
+                  message
+                );
+
+                logger.auth('EIP-712 signature generated for challenge:', signature);
+                return signature;
+              } catch (eip712Error) {
+                logger.error('EIP-712 signing failed:', eip712Error);
+                logger.auth('Attempting fallback to regular message signing...');
+
+                try {
+                  // Fallback to regular message signing if EIP-712 fails
+                  const fallbackMessage = `Authentication challenge for ${address}: ${challengeUUID}`;
+
+                  logger.auth('Fallback message:', fallbackMessage);
+
+                  const digestHex = ethers.id(fallbackMessage);
+                  const messageBytes = ethers.getBytes(digestHex);
+                  
+                  const { serialized: fallbackSignature } = this.wallet.signingKey.sign(messageBytes);
+
+                  logger.auth('Fallback signature generated:', fallbackSignature);
+                  return fallbackSignature;
+                } catch (fallbackError) {
+                  logger.error('Fallback signing also failed:', fallbackError);
+                  throw new Error(`Both EIP-712 and fallback signing failed: ${eip712Error.message}`);
+                }
+              }
+            };
+
+            const authVerify = await createAuthVerifyMessage(eip712SigningFunction, data, {
+              address: this.address,
+              session_key: this.address,
+              app_name: "Nitro Aura",
+            });
             logger.auth(`Sending auth verification: ${authVerify.slice(0, 100)}...`);
             this.ws.send(authVerify);
           } else if (response.res && response.res[1] === 'auth_verify') {
@@ -288,7 +528,7 @@ export class NitroliteRPCClient {
     return new Promise(async (resolve, reject) => {
       try {
         const request = NitroliteRPC.createRequest(requestId, method, params);
-        const signedRequest = await NitroliteRPC.signRequestMessage(request, sign);
+        const signedRequest = await NitroliteRPC.signRequestMessage(sign, request);
         
         logger.ws(`Sending request: ${JSON.stringify(signedRequest).slice(0, 100)}...`);
         
@@ -402,7 +642,7 @@ export class NitroliteRPCClient {
       // Create a channel in response to getChannelInfo
       try {
         logger.nitro('Creating new channel from getChannelInfo...');
-        const result = await createChannel(this.nitroliteClient);
+        // const result = await createChannel(this.nitroliteClient);
         logger.nitro('Successfully created channel in response to getChannelInfo');
         logger.data('New channel created', result);
         

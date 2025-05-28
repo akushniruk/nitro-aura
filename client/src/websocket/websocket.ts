@@ -2,6 +2,7 @@ import { type Hex } from "viem";
 import { ethers } from "ethers";
 import { createAuthRequestMessage, NitroliteRPC, createAuthVerifyMessage, createPingMessage } from "@erc7824/nitrolite";
 import type { Channel } from "@erc7824/nitrolite";
+import { WalletStore } from "../store";
 
 // ===== Types =====
 
@@ -49,6 +50,144 @@ export const getAddressFromPublicKey = (publicKey: string): string => {
     const address = `0x${hash.slice(-40)}`;
     return ethers.getAddress(address);
 };
+
+/**
+ * EIP-712 domain and types for auth_verify challenge
+ */
+const getAuthDomain = () => {
+    return {
+        name: "Nitro Aura",
+    };
+};
+
+const AUTH_TYPES = {
+    AuthVerify: [
+        { name: "address", type: "address" },
+        { name: "challenge", type: "string" },
+        { name: "session_key", type: "address" },
+    ],
+};
+
+/**
+ * Creates EIP-712 signing function for challenge verification with proper challenge extraction
+ */
+function createEIP712SigningFunction(stateSigner: WalletSigner) {
+    const walletClient = WalletStore.getWalletClient();
+
+    if (!walletClient) {
+        throw new Error("No wallet client available for EIP-712 signing");
+    }
+
+    return async (data: any): Promise<`0x${string}`> => {
+        console.log("Signing auth_verify challenge with EIP-712:", data);
+
+        let challengeUUID = "";
+        const address = walletClient.account?.address;
+
+        // The data coming in is the array from createAuthVerifyMessage
+        // Format: [timestamp, "auth_verify", [{"address": "0x...", "challenge": "uuid"}], timestamp]
+        if (Array.isArray(data)) {
+            console.log("Data is array, extracting challenge from position [2][0].challenge");
+
+            // Direct array access - data[2] should be the array with the challenge object
+            if (data.length >= 3 && Array.isArray(data[2]) && data[2].length > 0) {
+                const challengeObject = data[2][0];
+
+                if (challengeObject && challengeObject.challenge) {
+                    challengeUUID = challengeObject.challenge;
+                    console.log("Extracted challenge UUID from array:", challengeUUID);
+                }
+            }
+        } else if (typeof data === "string") {
+            try {
+                const parsed = JSON.parse(data);
+
+                console.log("Parsed challenge data:", parsed);
+
+                // Handle different message structures
+                if (parsed.res && Array.isArray(parsed.res)) {
+                    // auth_challenge response: {"res": [id, "auth_challenge", {"challenge": "uuid"}, timestamp]}
+                    if (parsed.res[1] === "auth_challenge" && parsed.res[2]) {
+                        challengeUUID = parsed.res[2].challenge_message || parsed.res[2].challenge;
+                        console.log("Extracted challenge UUID from auth_challenge:", challengeUUID);
+                    }
+                    // auth_verify message: [timestamp, "auth_verify", [{"address": "0x...", "challenge": "uuid"}], timestamp]
+                    else if (parsed.res[1] === "auth_verify" && Array.isArray(parsed.res[2]) && parsed.res[2][0]) {
+                        challengeUUID = parsed.res[2][0].challenge;
+                        console.log("Extracted challenge UUID from auth_verify:", challengeUUID);
+                    }
+                }
+                // Direct array format
+                else if (Array.isArray(parsed) && parsed.length >= 3 && Array.isArray(parsed[2])) {
+                    challengeUUID = parsed[2][0]?.challenge;
+                    console.log("Extracted challenge UUID from direct array:", challengeUUID);
+                }
+            } catch (e) {
+                console.error("Could not parse challenge data:", e);
+                console.log("Using raw string as challenge");
+                challengeUUID = data;
+            }
+        } else if (data && typeof data === "object") {
+            // If data is already an object, try to extract challenge
+            challengeUUID = data.challenge || data.challenge_message;
+            console.log("Extracted challenge from object:", challengeUUID);
+        }
+
+        if (!challengeUUID || challengeUUID.includes("[") || challengeUUID.includes("{")) {
+            console.error("Challenge extraction failed or contains invalid characters:", challengeUUID);
+            throw new Error("Could not extract valid challenge UUID for EIP-712 signing");
+        }
+
+        console.log("Final challenge UUID for EIP-712:", challengeUUID);
+        console.log("Signing for address:", address);
+        console.log("Auth domain:", getAuthDomain());
+
+        // Create EIP-712 message with ONLY the challenge UUID
+        const message = {
+            address: ethers.getAddress(address as string), // Ensure proper checksum format
+            challenge: challengeUUID,
+            session_key: ethers.getAddress(stateSigner.address), // Ensure proper checksum format
+        };
+
+        console.log("EIP-712 message to sign:", message);
+
+        try {
+            // Sign with EIP-712
+            const signature = await walletClient.signTypedData({
+                account: walletClient.account!,
+                domain: getAuthDomain(),
+                types: AUTH_TYPES,
+                primaryType: "AuthVerify",
+                message: message,
+            });
+
+            console.log("EIP-712 signature generated for challenge:", signature);
+            return signature;
+        } catch (eip712Error) {
+            console.error("EIP-712 signing failed:", eip712Error);
+            console.log("Attempting fallback to regular message signing...");
+
+            try {
+                // TODO: remove display error
+                // Fallback to regular message signing if EIP-712 fails
+                const fallbackMessage = `Authentication challenge for ${address}: ${challengeUUID}`;
+
+                console.log("Fallback message:", fallbackMessage);
+
+                const fallbackSignature = await walletClient.signMessage({
+                    message: fallbackMessage,
+                    account: walletClient.account!,
+                });
+
+                console.log("Fallback signature generated:", fallbackSignature);
+                return fallbackSignature as `0x${string}`;
+            } catch (fallbackError) {
+                console.error("Fallback signing also failed:", fallbackError);
+                throw new Error(`Both EIP-712 and fallback signing failed: ${fallbackError?.message}`);
+            }
+        }
+    };
+}
 
 // ===== Connection =====
 
@@ -202,13 +341,41 @@ export class WebSocketClient {
     }
 
     /**
+     * Waits for wallet client to be available
+     */
+    private async waitForWalletClient(timeout: number = 10000): Promise<any> {
+        const startTime = Date.now();
+
+        while (Date.now() - startTime < timeout) {
+            const walletClient = WalletStore.getWalletClient();
+            if (walletClient?.account?.address) {
+                return walletClient;
+            }
+
+            // Wait 100ms before checking again
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        throw new Error("Timeout waiting for wallet client to be available");
+    }
+
+    /**
      * Authenticates with the WebSocket server
      */
     private async authenticate(): Promise<void> {
+        // Wait for wallet client to be available
+        const walletClient = await this.waitForWalletClient();
+        console.log("Authenticating with wallet client:", walletClient);
         if (!this.ws) throw new Error("WebSocket not connected");
 
-        // Create and send auth request
-        const authRequest = await createAuthRequestMessage(this.signer.sign, this.signer.address);
+        if (!walletClient?.account?.address) throw new Error("Wallet client not initialized or address not available");
+
+        const authRequest = await createAuthRequestMessage({
+            address: ethers.getAddress(walletClient?.account?.address as string) as `0x${string}`,
+            session_key: ethers.getAddress(this.signer.address) as `0x${string}`,
+            app_name: "Nitro Aura",
+        });
+
         this.ws.send(authRequest);
 
         return new Promise((resolve, reject) => {
@@ -229,8 +396,24 @@ export class WebSocketClient {
 
                 try {
                     if (response.res && response.res[1] === "auth_challenge") {
+                        // walletClient is already available from the authenticate method scope
                         // Handle challenge response
-                        const authVerify = await createAuthVerifyMessage(this.signer.sign, event.data, this.signer.address);
+                        const verifyAuthParams = {
+                            address: ethers.getAddress(walletClient.account?.address as string) as `0x${string}`,
+                            session_key: ethers.getAddress(this.signer.address) as `0x${string}`,
+                            app_name: "Nitro Aura",
+                            challenge: event.data,
+                        };
+                        const eip712SigningFunction = createEIP712SigningFunction(this.signer);
+
+                        console.log("Calling createAuthVerifyMessage...");
+                        // Create and send verification message with EIP-712 signature
+                        const authVerify = await createAuthVerifyMessage(
+                            eip712SigningFunction,
+                            event.data, // Pass the raw challenge response string/object
+                            verifyAuthParams
+                        );
+
                         this.ws?.send(authVerify);
                     } else if (response.res && response.res[1] === "auth_verify") {
                         // Authentication successful
