@@ -212,6 +212,7 @@ export class WebSocketClient {
     private errorHandlers: ((error: Error) => void)[] = [];
     private currentChannel: any = null;
     private nitroliteChannel: Channel | null = null;
+    private pingInterval: any = null;
 
     /**
      * Creates a new WebSocket client
@@ -313,6 +314,7 @@ export class WebSocketClient {
                         await this.authenticate();
                         this.emitStatus("connected");
                         this.reconnectAttempts = 0;
+                        this.startPingInterval();
                         resolve();
                     } catch (error) {
                         this.emitStatus("auth_failed");
@@ -334,6 +336,7 @@ export class WebSocketClient {
                     this.emitStatus("disconnected");
                     this.ws = null;
                     this.currentChannel = null;
+                    this.stopPingInterval();
 
                     this.pendingRequests.forEach(({ reject }) => reject(new Error("WebSocket connection closed")));
                     this.pendingRequests.clear();
@@ -471,6 +474,32 @@ export class WebSocketClient {
     }
 
     /**
+     * Starts ping interval to keep connection alive
+     */
+    private startPingInterval(): void {
+        this.stopPingInterval();
+        this.pingInterval = setInterval(async () => {
+            if (this.isConnected) {
+                try {
+                    await this.ping();
+                } catch (error) {
+                    console.error("Error sending ping:", error);
+                }
+            }
+        }, 20000);
+    }
+
+    /**
+     * Stops the ping interval
+     */
+    private stopPingInterval(): void {
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+            this.pingInterval = null;
+        }
+    }
+
+    /**
      * Closes the WebSocket connection
      */
     close(): void {
@@ -478,6 +507,8 @@ export class WebSocketClient {
             clearTimeout(this.reconnectTimeout);
             this.reconnectTimeout = null;
         }
+
+        this.stopPingInterval();
 
         if (this.ws && (this.ws.readyState === WebSocketReadyState.OPEN || this.ws.readyState === WebSocketReadyState.CONNECTING)) {
             try {
