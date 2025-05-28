@@ -153,12 +153,7 @@ function createEIP712SigningFunction(stateSigner: WalletSigner) {
             address: ethers.getAddress(address as string), // Ensure proper checksum format
             challenge: challengeUUID,
             session_key: ethers.getAddress(stateSigner.address), // Ensure proper checksum format
-            allowances: [
-                {
-                    symbol: "usdc",
-                    amount: "100000000000",
-                },
-            ],
+            allowances: [],
         };
 
         console.log("EIP-712 message to sign:", message);
@@ -386,12 +381,7 @@ export class WebSocketClient {
             address: ethers.getAddress(walletClient?.account?.address as string) as `0x${string}`,
             session_key: ethers.getAddress(this.signer.address) as `0x${string}`,
             app_name: "Nitro Aura",
-            allowances: [
-                {
-                    symbol: "usdc",
-                    amount: "100000000000",
-                },
-            ],
+            allowances: [],
         });
 
         this.ws.send(authRequest);

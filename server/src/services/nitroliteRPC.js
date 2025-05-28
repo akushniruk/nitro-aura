@@ -218,12 +218,7 @@ export class NitroliteRPCClient {
             address: address,
             challenge: challengeUUID,
             session_key: address, // Using wallet address as session key for server
-            allowances: [
-                {
-                    asset: "usdc",
-                    amount: "100000000000",
-                },
-            ],
+            allowances: []
         };
 
         logger.auth("EIP-712 message to sign:", message);
@@ -276,12 +271,7 @@ export class NitroliteRPCClient {
                         address: this.address,
                         session_key: this.address,
                         app_name: "Nitro Aura",
-                        allowances: [
-                            {
-                                symbol: "usdc",
-                                amount: "100000000000",
-                            },
-                        ],
+                        allowances: []
                     });
                     logger.auth("Sending auth request:", request.slice(0, 100) + "...");
                     this.ws.send(request);
@@ -370,12 +360,7 @@ export class NitroliteRPCClient {
                                 address: address,
                                 challenge: challengeUUID,
                                 session_key: this.address, // Using wallet address as session key for server
-                                allowances: [
-                                    {
-                                        symbol: "usdc",
-                                        amount: "100000000000",
-                                    },
-                                ],
+                                allowances: [],
                             };
 
                             logger.auth("EIP-712 message to sign:", message);
