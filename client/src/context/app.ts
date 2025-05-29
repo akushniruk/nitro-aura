@@ -22,7 +22,7 @@ export const APP_CONFIG = {
     },
 
     CUSTODIES: {
-        137: "0xc2F8Fca0A2dFa200728D3dae130dF6065b7da986" as Address,
+        137: "0x2627644ae08aa21Da0Fb458D8879729743D1bB51" as Address,
     },
 
     DEFAULT_ADJUDICATOR: "dummy",

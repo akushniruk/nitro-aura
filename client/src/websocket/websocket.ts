@@ -1,6 +1,12 @@
 import { type Hex } from "viem";
 import { ethers } from "ethers";
-import { createAuthRequestMessage, NitroliteRPC, createAuthVerifyMessage, createPingMessage } from "@erc7824/nitrolite";
+import {
+    createAuthRequestMessage,
+    NitroliteRPC,
+    createAuthVerifyMessage,
+    createPingMessage,
+    createAuthVerifyMessageWithJWT,
+} from "@erc7824/nitrolite";
 import type { Channel } from "@erc7824/nitrolite";
 import { WalletStore } from "../store";
 
@@ -61,10 +67,13 @@ const getAuthDomain = () => {
 };
 
 const AUTH_TYPES = {
-    AuthVerify: [
-        { name: "address", type: "address" },
+    Policy: [
         { name: "challenge", type: "string" },
-        { name: "session_key", type: "address" },
+        { name: "scope", type: "string" },
+        { name: "wallet", type: "address" },
+        { name: "application", type: "address" },
+        { name: "participant", type: "address" },
+        { name: "expire", type: "uint256" },
         { name: "allowances", type: "Allowance[]" },
     ],
     Allowance: [
@@ -72,6 +81,8 @@ const AUTH_TYPES = {
         { name: "amount", type: "uint256" },
     ],
 };
+
+const expire = String(Math.floor(Date.now() / 1000) + 24 * 60 * 60);
 
 /**
  * Creates EIP-712 signing function for challenge verification with proper challenge extraction
@@ -83,7 +94,6 @@ function createEIP712SigningFunction(stateSigner: WalletSigner) {
         throw new Error("No wallet client available for EIP-712 signing");
     }
 
-    // @ts-ignore
     return async (data: any): Promise<`0x${string}`> => {
         console.log("Signing auth_verify challenge with EIP-712:", data);
 
@@ -148,11 +158,14 @@ function createEIP712SigningFunction(stateSigner: WalletSigner) {
         console.log("Signing for address:", address);
         console.log("Auth domain:", getAuthDomain());
 
-        // Create EIP-712 message with ONLY the challenge UUID
+        // Create EIP-712 message
         const message = {
-            address: ethers.getAddress(address as string), // Ensure proper checksum format
             challenge: challengeUUID,
-            session_key: ethers.getAddress(stateSigner.address), // Ensure proper checksum format
+            scope: "app.nitro.aura",
+            wallet: address as `0x${string}`,
+            application: address as `0x${string}`,
+            participant: stateSigner.address as `0x${string}`,
+            expire: expire,
             allowances: [],
         };
 
@@ -164,7 +177,7 @@ function createEIP712SigningFunction(stateSigner: WalletSigner) {
                 account: walletClient.account!,
                 domain: getAuthDomain(),
                 types: AUTH_TYPES,
-                primaryType: "AuthVerify",
+                primaryType: "Policy",
                 message: message,
             });
 
@@ -175,7 +188,6 @@ function createEIP712SigningFunction(stateSigner: WalletSigner) {
             console.log("Attempting fallback to regular message signing...");
 
             try {
-                // TODO: remove display error
                 // Fallback to regular message signing if EIP-712 fails
                 const fallbackMessage = `Authentication challenge for ${address}: ${challengeUUID}`;
 
@@ -190,7 +202,7 @@ function createEIP712SigningFunction(stateSigner: WalletSigner) {
                 return fallbackSignature as `0x${string}`;
             } catch (fallbackError) {
                 console.error("Fallback signing also failed:", fallbackError);
-                // throw new Error(`Both EIP-712 and fallback signing failed: ${fallbackError?.message}`);
+                throw new Error(`Both EIP-712 and fallback signing failed: ${(eip712Error as Error)?.message}`);
             }
         }
     };
@@ -380,12 +392,31 @@ export class WebSocketClient {
 
         if (!walletClient?.account?.address) throw new Error("Wallet client not initialized or address not available");
 
-        const authRequest = await createAuthRequestMessage({
-            address: ethers.getAddress(walletClient?.account?.address as string) as `0x${string}`,
-            session_key: ethers.getAddress(this.signer.address) as `0x${string}`,
-            app_name: "Nitro Aura",
-            allowances: [],
-        });
+        const privyWalletAddress = walletClient.account.address;
+
+        console.log("Starting authentication with:");
+        console.log("- Privy wallet address:", privyWalletAddress);
+
+        // Check for JWT token first
+        const jwtToken = typeof window !== "undefined" ? window.localStorage?.getItem("jwtToken") : null;
+
+        let authRequest: string;
+
+        if (jwtToken) {
+            console.log("JWT token found, sending auth request with token");
+            authRequest = await createAuthVerifyMessageWithJWT(jwtToken);
+        } else {
+            console.log("No JWT token found, proceeding with challenge-response authentication");
+            authRequest = await createAuthRequestMessage({
+                wallet: ethers.getAddress(privyWalletAddress) as `0x${string}`,
+                participant: this.signer.address,
+                app_name: "Nitro Aura",
+                expire: expire,
+                scope: "app.nitro.aura",
+                application: ethers.getAddress(privyWalletAddress) as `0x${string}`,
+                allowances: [],
+            });
+        }
 
         this.ws.send(authRequest);
 
@@ -418,7 +449,17 @@ export class WebSocketClient {
                         );
 
                         this.ws?.send(authVerify);
-                    } else if (response.res && response.res[1] === "auth_verify") {
+                    } else if (response.res && (response.res[1] === "auth_verify" || response.res[1] === "auth_success")) {
+                        console.log("Authentication successful");
+
+                        // If response contains a JWT token, store it
+                        if (response.res[2]?.[0]?.["jwt_token"]) {
+                            console.log("JWT token received:", response.res[2][0]["jwt_token"]);
+                            if (typeof window !== "undefined") {
+                                window.localStorage?.setItem("jwtToken", response.res[2][0]["jwt_token"]);
+                            }
+                        }
+
                         // Authentication successful
                         const paramsForChannels = [{ participant: this.signer.address }];
                         const getChannelsMessage = NitroliteRPC.createRequest(10, "get_channels", paramsForChannels);
@@ -428,9 +469,13 @@ export class WebSocketClient {
                         clearTimeout(authTimeout);
                         this.ws?.removeEventListener("message", handleAuthResponse);
                         resolve();
-                    } else if (response.err) {
+                    } else if (response.err || (response.res && response.res[1] === "error")) {
                         // Authentication error
-                        const errorMsg = response.err[2] || "Authentication failed";
+                        const errorMsg = response.err?.[2] || response.error || response.res?.[2]?.[0]?.error || "Authentication failed";
+                        console.error("Authentication failed:", errorMsg);
+                        if (typeof window !== "undefined") {
+                            window.localStorage?.removeItem("jwtToken");
+                        }
                         clearTimeout(authTimeout);
                         this.ws?.removeEventListener("message", handleAuthResponse);
                         reject(new Error(String(errorMsg)));

@@ -7,7 +7,7 @@ import { ethers } from "ethers";
 import { NitroliteRPC, createAuthRequestMessage, createAuthVerifyMessage, createPingMessage } from "@erc7824/nitrolite";
 import dotenv from "dotenv";
 import logger from "../utils/logger.js";
-import { getNitroliteOnChainClient, createChannel } from "./nitroliteOnChain.js";
+import { getWalletClient } from "./nitroliteOnChain.js";
 
 /**
  * EIP-712 domain and types for auth_verify challenge
@@ -19,10 +19,13 @@ const getAuthDomain = () => {
 };
 
 const AUTH_TYPES = {
-    AuthVerify: [
-        { name: "address", type: "address" },
+    Policy: [
         { name: "challenge", type: "string" },
-        { name: "session_key", type: "address" },
+        { name: "scope", type: "string" },
+        { name: "wallet", type: "address" },
+        { name: "application", type: "address" },
+        { name: "participant", type: "address" },
+        { name: "expire", type: "uint256" },
         { name: "allowances", type: "Allowance[]" },
     ],
     Allowance: [
@@ -30,6 +33,8 @@ const AUTH_TYPES = {
         { name: "amount", type: "uint256" },
     ],
 };
+
+const expire = String(Math.floor(Date.now() / 1000) + 24 * 60 * 60);
 
 // Load environment variables
 dotenv.config();
@@ -63,7 +68,7 @@ export class NitroliteRPCClient {
         this.reconnectTimeout = null;
         this.onMessageCallbacks = [];
         this.onStatusChangeCallbacks = [];
-        this.nitroliteClient = null;
+        this.walletClient = null;
 
         logger.system(`RPC client initialized with address: ${this.address}`);
     }
@@ -97,7 +102,6 @@ export class NitroliteRPCClient {
                 try {
                     await this.authenticate();
                     logger.auth("Successfully authenticated with the WebSocket server");
-                    // Note: Status should already be CONNECTED from inside authenticate()
                     this.reconnectAttempts = 0;
                     this.startPingInterval();
                 } catch (error) {
@@ -136,22 +140,14 @@ export class NitroliteRPCClient {
         this.onStatusChangeCallbacks.forEach((callback) => callback(status));
     }
 
-    // Sign message function that can be reused across the client
-    async signMessage(data) {
-        logger.auth(`Signing message: ${typeof data === "string" ? data.slice(0, 50) : JSON.stringify(data).slice(0, 50)}...`);
-
+    // Extract challenge UUID from various data formats
+    extractChallenge(data) {
         let challengeUUID = "";
-        const address = this.address;
 
-        // The data coming in is the array from createAuthVerifyMessage
-        // Format: [timestamp, "auth_verify", [{"address": "0x...", "challenge": "uuid"}], timestamp]
         if (Array.isArray(data)) {
             logger.auth("Data is array, extracting challenge from position [2][0].challenge");
-
-            // Direct array access - data[2] should be the array with the challenge object
             if (data.length >= 3 && Array.isArray(data[2]) && data[2].length > 0) {
                 const challengeObject = data[2][0];
-
                 if (challengeObject && challengeObject.challenge) {
                     challengeUUID = challengeObject.challenge;
                     logger.auth("Extracted challenge UUID from array:", challengeUUID);
@@ -160,24 +156,17 @@ export class NitroliteRPCClient {
         } else if (typeof data === "string") {
             try {
                 const parsed = JSON.parse(data);
-
                 logger.auth("Parsed challenge data:", parsed);
 
-                // Handle different message structures
                 if (parsed.res && Array.isArray(parsed.res)) {
-                    // auth_challenge response: {"res": [id, "auth_challenge", {"challenge": "uuid"}, timestamp]}
                     if (parsed.res[1] === "auth_challenge" && parsed.res[2]) {
                         challengeUUID = parsed.res[2].challenge_message || parsed.res[2].challenge;
                         logger.auth("Extracted challenge UUID from auth_challenge:", challengeUUID);
-                    }
-                    // auth_verify message: [timestamp, "auth_verify", [{"address": "0x...", "challenge": "uuid"}], timestamp]
-                    else if (parsed.res[1] === "auth_verify" && Array.isArray(parsed.res[2]) && parsed.res[2][0]) {
+                    } else if (parsed.res[1] === "auth_verify" && Array.isArray(parsed.res[2]) && parsed.res[2][0]) {
                         challengeUUID = parsed.res[2][0].challenge;
                         logger.auth("Extracted challenge UUID from auth_verify:", challengeUUID);
                     }
-                }
-                // Direct array format
-                else if (Array.isArray(parsed) && parsed.length >= 3 && Array.isArray(parsed[2])) {
+                } else if (Array.isArray(parsed) && parsed.length >= 3 && Array.isArray(parsed[2])) {
                     challengeUUID = parsed[2][0]?.challenge;
                     logger.auth("Extracted challenge UUID from direct array:", challengeUUID);
                 }
@@ -187,10 +176,19 @@ export class NitroliteRPCClient {
                 challengeUUID = data;
             }
         } else if (data && typeof data === "object") {
-            // If data is already an object, try to extract challenge
             challengeUUID = data.challenge || data.challenge_message;
             logger.auth("Extracted challenge from object:", challengeUUID);
         }
+
+        return challengeUUID;
+    }
+
+    // Sign message function that can be reused across the client
+    async signMessage(data) {
+        logger.auth(`Signing message: ${typeof data === "string" ? data.slice(0, 50) : JSON.stringify(data).slice(0, 50)}...`);
+
+        const challengeUUID = this.extractChallenge(data);
+        const address = this.address;
 
         if (!challengeUUID || challengeUUID.includes("[") || challengeUUID.includes("{")) {
             logger.error("Challenge extraction failed or contains invalid characters:", challengeUUID);
@@ -213,12 +211,15 @@ export class NitroliteRPCClient {
         logger.auth("Signing for address:", address);
         logger.auth("Auth domain:", getAuthDomain());
 
-        // Create EIP-712 message with ONLY the challenge UUID
+        // Create EIP-712 message
         const message = {
-            address: address,
             challenge: challengeUUID,
-            session_key: address, // Using wallet address as session key for server
-            allowances: []
+            scope: "app.nitro.aura",
+            wallet: address,
+            application: address,
+            participant: address,
+            expire: expire,
+            allowances: [],
         };
 
         logger.auth("EIP-712 message to sign:", message);
@@ -226,7 +227,6 @@ export class NitroliteRPCClient {
         try {
             // Sign with EIP-712 using ethers
             const signature = await this.wallet.signTypedData(getAuthDomain(), AUTH_TYPES, message);
-
             logger.auth("EIP-712 signature generated for challenge:", signature);
             return signature;
         } catch (eip712Error) {
@@ -236,14 +236,12 @@ export class NitroliteRPCClient {
             try {
                 // Fallback to regular message signing if EIP-712 fails
                 const fallbackMessage = `Authentication challenge for ${address}: ${challengeUUID}`;
-
                 logger.auth("Fallback message:", fallbackMessage);
 
                 const digestHex = ethers.id(fallbackMessage);
                 const messageBytes = ethers.getBytes(digestHex);
 
                 const { serialized: fallbackSignature } = this.wallet.signingKey.sign(messageBytes);
-
                 logger.auth("Fallback signature generated:", fallbackSignature);
                 return fallbackSignature;
             } catch (fallbackError) {
@@ -268,11 +266,15 @@ export class NitroliteRPCClient {
             const authRequest = async () => {
                 try {
                     const request = await createAuthRequestMessage({
-                        address: this.address,
-                        session_key: this.address,
+                        wallet: this.address,
+                        participant: this.address,
                         app_name: "Nitro Aura",
-                        allowances: []
+                        expire: expire,
+                        scope: "app.nitro.aura",
+                        application: this.address,
+                        allowances: [],
                     });
+
                     logger.auth("Sending auth request:", request.slice(0, 100) + "...");
                     this.ws.send(request);
                 } catch (error) {
@@ -291,111 +293,8 @@ export class NitroliteRPCClient {
                     if (response.res && response.res[1] === "auth_challenge") {
                         logger.auth("Received auth challenge, sending verification...");
 
-                        // Create EIP-712 signing function that matches the React implementation
-                        const eip712SigningFunction = async (data) => {
-                            logger.auth("Signing auth_verify challenge with EIP-712:", data);
-
-                            let challengeUUID = "";
-                            const address = this.address;
-
-                            // The data coming in is the array from createAuthVerifyMessage
-                            // Format: [timestamp, "auth_verify", [{"address": "0x...", "challenge": "uuid"}], timestamp]
-                            if (Array.isArray(data)) {
-                                logger.auth("Data is array, extracting challenge from position [2][0].challenge");
-
-                                // Direct array access - data[2] should be the array with the challenge object
-                                if (data.length >= 3 && Array.isArray(data[2]) && data[2].length > 0) {
-                                    const challengeObject = data[2][0];
-
-                                    if (challengeObject && challengeObject.challenge) {
-                                        challengeUUID = challengeObject.challenge;
-                                        logger.auth("Extracted challenge UUID from array:", challengeUUID);
-                                    }
-                                }
-                            } else if (typeof data === "string") {
-                                try {
-                                    const parsed = JSON.parse(data);
-                                    logger.auth("Parsed challenge data:", parsed);
-
-                                    // Handle different message structures
-                                    if (parsed.res && Array.isArray(parsed.res)) {
-                                        // auth_challenge response: {"res": [id, "auth_challenge", {"challenge": "uuid"}, timestamp]}
-                                        if (parsed.res[1] === "auth_challenge" && parsed.res[2]) {
-                                            challengeUUID = parsed.res[2].challenge_message || parsed.res[2].challenge;
-                                            logger.auth("Extracted challenge UUID from auth_challenge:", challengeUUID);
-                                        }
-                                        // auth_verify message: [timestamp, "auth_verify", [{"address": "0x...", "challenge": "uuid"}], timestamp]
-                                        else if (parsed.res[1] === "auth_verify" && Array.isArray(parsed.res[2]) && parsed.res[2][0]) {
-                                            challengeUUID = parsed.res[2][0].challenge;
-                                            logger.auth("Extracted challenge UUID from auth_verify:", challengeUUID);
-                                        }
-                                    }
-                                    // Direct array format
-                                    else if (Array.isArray(parsed) && parsed.length >= 3 && Array.isArray(parsed[2])) {
-                                        challengeUUID = parsed[2][0]?.challenge;
-                                        logger.auth("Extracted challenge UUID from direct array:", challengeUUID);
-                                    }
-                                } catch (e) {
-                                    logger.error("Could not parse challenge data:", e);
-                                    logger.auth("Using raw string as challenge");
-                                    challengeUUID = data;
-                                }
-                            } else if (data && typeof data === "object") {
-                                // If data is already an object, try to extract challenge
-                                challengeUUID = data.challenge || data.challenge_message;
-                                logger.auth("Extracted challenge from object:", challengeUUID);
-                            }
-
-                            if (!challengeUUID || challengeUUID.includes("[") || challengeUUID.includes("{")) {
-                                logger.error("Challenge extraction failed or contains invalid characters:", challengeUUID);
-                                throw new Error("Could not extract valid challenge UUID for EIP-712 signing");
-                            }
-
-                            logger.auth("Final challenge UUID for EIP-712:", challengeUUID);
-                            logger.auth("Signing for address:", address);
-                            logger.auth("Auth domain:", getAuthDomain());
-
-                            // Create EIP-712 message with ONLY the challenge UUID
-                            const message = {
-                                address: address,
-                                challenge: challengeUUID,
-                                session_key: this.address, // Using wallet address as session key for server
-                                allowances: [],
-                            };
-
-                            logger.auth("EIP-712 message to sign:", message);
-
-                            try {
-                                // Sign with EIP-712 using ethers
-                                const signature = await this.wallet.signTypedData(getAuthDomain(), AUTH_TYPES, message);
-
-                                logger.auth("EIP-712 signature generated for challenge:", signature);
-                                return signature;
-                            } catch (eip712Error) {
-                                logger.error("EIP-712 signing failed:", eip712Error);
-                                logger.auth("Attempting fallback to regular message signing...");
-
-                                try {
-                                    // Fallback to regular message signing if EIP-712 fails
-                                    const fallbackMessage = `Authentication challenge for ${address}: ${challengeUUID}`;
-
-                                    logger.auth("Fallback message:", fallbackMessage);
-
-                                    const digestHex = ethers.id(fallbackMessage);
-                                    const messageBytes = ethers.getBytes(digestHex);
-
-                                    const { serialized: fallbackSignature } = this.wallet.signingKey.sign(messageBytes);
-
-                                    logger.auth("Fallback signature generated:", fallbackSignature);
-                                    return fallbackSignature;
-                                } catch (fallbackError) {
-                                    logger.error("Fallback signing also failed:", fallbackError);
-                                    throw new Error(`Both EIP-712 and fallback signing failed: ${eip712Error.message}`);
-                                }
-                            }
-                        };
-
-                        const authVerify = await createAuthVerifyMessage(eip712SigningFunction, data);
+                        // Use the same signMessage method for auth verification
+                        const authVerify = await createAuthVerifyMessage(sign, data);
                         logger.auth(`Sending auth verification: ${authVerify.slice(0, 100)}...`);
                         this.ws.send(authVerify);
                     } else if (response.res && response.res[1] === "auth_verify") {
@@ -414,11 +313,9 @@ export class NitroliteRPCClient {
 
                             if (!hasValidChannel) {
                                 logger.nitro("No valid channels found after authentication, will create one");
-                                // We'll let the getChannelInfo response handle creation
                             }
                         } catch (error) {
                             logger.error("Failed to get channel info, continuing anyway:", error);
-                            // Continue with authentication even if channel info fails
                         }
 
                         resolve();
@@ -506,7 +403,6 @@ export class NitroliteRPCClient {
 
         if (this.status !== WSStatus.CONNECTED) {
             logger.warn(`WebSocket status is ${this.status}, should be ${WSStatus.CONNECTED}. Proceeding anyway.`);
-            // Set the status to CONNECTED if it's in AUTHENTICATING but we've passed authentication
             if (this.status === WSStatus.AUTHENTICATING) {
                 logger.system("Fixing status to CONNECTED for authenticated connection");
                 this.setStatus(WSStatus.CONNECTED);
@@ -514,8 +410,6 @@ export class NitroliteRPCClient {
         }
 
         const requestId = this.nextRequestId++;
-
-        // Use the same signing function for consistency
         const sign = this.signMessage.bind(this);
 
         return new Promise(async (resolve, reject) => {
@@ -527,7 +421,6 @@ export class NitroliteRPCClient {
 
                 this.pendingRequests.set(requestId, { resolve, reject });
 
-                // Set timeout
                 setTimeout(() => {
                     if (this.pendingRequests.has(requestId)) {
                         this.pendingRequests.delete(requestId);
@@ -550,11 +443,8 @@ export class NitroliteRPCClient {
         this.pingInterval = setInterval(async () => {
             if (this.status === WSStatus.CONNECTED) {
                 try {
-                    // Use the same signing function for consistency
                     const sign = this.signMessage.bind(this);
-
                     const pingMessage = await createPingMessage(sign);
-                    // Don't log pings to reduce noise
                     this.ws.send(pingMessage);
                 } catch (error) {
                     logger.error("Error sending ping:", error);
@@ -604,53 +494,31 @@ export class NitroliteRPCClient {
             const response = await this.sendRequest("get_channels", [{ participant: this.address }]);
             logger.data("Channel info received", response);
 
-            // Debug the raw response
             logger.system("Debug - Raw channel response:");
             logger.system(`- response type: ${typeof response}`);
             logger.system(`- is array: ${Array.isArray(response)}`);
             logger.system(`- stringified: ${JSON.stringify(response)}`);
 
-            // Check if we need to unwrap the response
             let channels = response;
 
             if (Array.isArray(response) && response.length === 1 && response[0] === null) {
                 logger.system("Debug - Got array with single null item");
             }
 
-            // Check if we have valid channels
             if (channels && Array.isArray(channels) && channels.length > 0 && channels[0] !== null) {
                 logger.nitro(`Found ${channels.length} valid existing channels`);
                 this.channel = channels[0];
                 return channels;
             }
 
-            logger.nitro("No valid channels found, creating a new one now");
+            logger.nitro("No valid channels found");
 
-            // Get the on-chain client if not already initialized
-            if (!this.nitroliteClient) {
-                logger.nitro("Getting Nitrolite on-chain client for channel creation...");
-                this.nitroliteClient = await getNitroliteOnChainClient(this.privateKey);
+            if (!this.walletClient) {
+                logger.nitro("Getting wallet client...");
+                this.walletClient = await getWalletClient(this.privateKey);
             }
 
-            // Create a channel in response to getChannelInfo
-            try {
-                logger.nitro("Creating new channel from getChannelInfo...");
-                // const result = await createChannel(this.nitroliteClient);
-                logger.nitro("Successfully created channel in response to getChannelInfo");
-                logger.data("New channel created", result);
-
-                // Make sure to set the channel
-                if (result && result.channel) {
-                    this.channel = result.channel;
-                }
-
-                // Return an array with the newly created channel
-                return [this.channel];
-            } catch (channelError) {
-                logger.error("Failed to create channel in getChannelInfo response:", channelError);
-                // Still return an empty array
-                return [];
-            }
+            return [];
         } catch (error) {
             logger.error("Error getting channel info:", error);
             throw error;
@@ -681,27 +549,20 @@ export async function initializeRPCClient() {
 
         rpcClient = new NitroliteRPCClient(process.env.WS_URL, process.env.SERVER_PRIVATE_KEY);
 
-        // Log all WebSocket messages
         rpcClient.onMessage((message) => {
             logger.ws("RPC Message:", JSON.stringify(message, null, 2));
         });
 
-        // Log status changes
         rpcClient.onStatusChange((status) => {
             logger.ws("RPC Status changed:", status);
         });
 
-        // Connect to the WebSocket server
         await rpcClient.connect();
+        rpcClient.walletClient = await getWalletClient(process.env.SERVER_PRIVATE_KEY);
 
-        // Initialize nitroliteClient property with on-chain client
-        rpcClient.nitroliteClient = await getNitroliteOnChainClient(process.env.SERVER_PRIVATE_KEY);
-
-        // Get existing channels
         logger.system("Checking for existing channels...");
         const channels = await rpcClient.getChannelInfo();
 
-        // Check if we have valid channels
         const hasValidChannel = channels && Array.isArray(channels) && channels.length > 0 && channels[0] !== null;
 
         if (hasValidChannel) {
@@ -709,13 +570,10 @@ export async function initializeRPCClient() {
             logger.data("Channel data", channels[0]);
             rpcClient.channel = channels[0];
         } else {
-            // Log that no valid channels found
             logger.nitro("No valid channels found in initializeRPCClient");
-            // Don't create channel here - it's handled by getChannelInfo
         }
     } catch (error) {
         logger.error("Error during RPC client initialization:", error);
-        // Continue anyway - the server can still function for basic operations
     }
 
     return rpcClient;
