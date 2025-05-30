@@ -461,7 +461,7 @@ export class WebSocketClient {
                         }
 
                         // Authentication successful
-                        const paramsForChannels = [{ participant: this.signer.address }];
+                        const paramsForChannels = [{ participant: ethers.getAddress(privyWalletAddress) as `0x${string}` }];
                         const getChannelsMessage = NitroliteRPC.createRequest(10, "get_channels", paramsForChannels);
                         const getChannelMessage = await NitroliteRPC.signRequestMessage(getChannelsMessage, this.signer.sign);
                         console.log("getChannelMessage", getChannelMessage);
