@@ -349,6 +349,14 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
 
                                 {/* Join tab content */}
                                 <TabsContent value="join" className="space-y-5 mt-4 mb-0">
+                                    {/* Betting amount notice */}
+                                    <div className="rounded-md bg-amber-950/20 p-4 text-sm border border-amber-900/30 shadow-inner">
+                                        <p className="mb-2 text-amber-400 font-medium flex items-center">
+                                            Game Stakes
+                                        </p>
+                                        <p className="text-amber-200 text-sm opacity-90">Each player bets <span className="font-bold text-amber-300">1 USDT</span>. Winner takes all!</p>
+                                    </div>
+                                    
                                     {/* Available games list */}
                                     <div className="rounded-md bg-fuchsia-950/10 p-4 border border-fuchsia-900/20 shadow-inner space-y-3">
                                         <div className="flex items-center justify-between mb-2">
@@ -447,6 +455,14 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
 
                                 {/* Create tab content */}
                                 <TabsContent value="create" className="space-y-4 mt-4 mb-0">
+                                    {/* Betting amount notice */}
+                                    <div className="rounded-md bg-amber-950/20 p-4 text-sm border border-amber-900/30 shadow-inner">
+                                        <p className="mb-2 text-amber-400 font-medium flex items-center">
+                                            Game Stakes
+                                        </p>
+                                        <p className="text-amber-200 text-sm opacity-90">Each player bets <span className="font-bold text-amber-300">1 USDT</span>. Winner takes all!</p>
+                                    </div>
+                                    
                                     <div className="rounded-md bg-cyan-950/20 p-4 text-sm text-gray-300 border border-cyan-900/30 shadow-inner">
                                         <p className="mb-2 text-cyan-400 font-medium flex items-center">
                                             <GamepadIcon className="h-4 w-4 mr-1.5" />

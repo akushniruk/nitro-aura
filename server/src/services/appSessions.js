@@ -65,12 +65,12 @@ export async function createAppSession(roomId, participantA, participantB) {
             {
               participant: participantA,
               asset: 'usdc',
-              amount: amount,
+              amount: '1000000',
             },
             {
               participant: participantB,
               asset: 'usdc',
-              amount: '0',
+              amount: '1000000',
             },
             {
               participant: serverAddress,
@@ -159,6 +159,48 @@ export async function createAppSession(roomId, participantA, participantB) {
   } catch (error) {
     logger.error(`Error creating app session for room ${roomId}:`, error);
     throw error;
+  }
+}
+
+/**
+ * Close an app session with winner taking the allocation
+ * @param {string} roomId - Room ID
+ * @param {string} winnerId - Winner's participant ID ('A' or 'B'), null for tie
+ * @returns {Promise<boolean>} Success status
+ */
+export async function closeAppSessionWithWinner(roomId, winnerId = null) {
+  try {
+    // Get the app session for this room
+    const appSession = roomAppSessions.get(roomId);
+    if (!appSession) {
+      logger.warn(`No app session found for room ${roomId}`);
+      return false;
+    }
+
+    const { participantA, participantB } = appSession;
+    
+    // Calculate allocations based on winner
+    let allocations;
+    if (winnerId === 'A') {
+      // Player A wins - gets all the funds
+      allocations = [2000000, 0, 0]; // A gets both initial allocations
+      logger.nitro(`Player A (${participantA}) wins room ${roomId} - taking full allocation`);
+    } else if (winnerId === 'B') {
+      // Player B wins - gets all the funds
+      allocations = [0, 2000000, 0]; // B gets both initial allocations
+      logger.nitro(`Player B (${participantB}) wins room ${roomId} - taking full allocation`);
+    } else {
+      // Tie or no winner - split evenly
+      allocations = [1000000, 1000000, 0];
+      logger.nitro(`Tie in room ${roomId} - splitting allocation evenly`);
+    }
+
+    // Use the existing closeAppSession function with calculated allocations
+    return await closeAppSession(roomId, allocations);
+    
+  } catch (error) {
+    logger.error(`Error closing app session with winner for room ${roomId}:`, error);
+    return false;
   }
 }
 
