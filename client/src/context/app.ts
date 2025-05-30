@@ -14,7 +14,7 @@ export const APP_CONFIG = {
 
     CHANNEL: {
         DEFAULT_GUEST: "0x3c93C321634a80FB3657CFAC707718A11cA57cBf",
-        CHALLENGE_PERIOD: BigInt(1),
+        CHALLENGE_PERIOD: BigInt(3600),
     },
 
     TOKENS: {
