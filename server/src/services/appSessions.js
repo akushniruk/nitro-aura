@@ -65,12 +65,12 @@ export async function createAppSession(roomId, participantA, participantB) {
             {
               participant: participantA,
               asset: 'usdc',
-              amount: '1000000',
+              amount: '1',
             },
             {
               participant: participantB,
               asset: 'usdc',
-              amount: '1000000',
+              amount: '1',
             },
             {
               participant: serverAddress,
@@ -183,15 +183,15 @@ export async function closeAppSessionWithWinner(roomId, winnerId = null) {
     let allocations;
     if (winnerId === 'A') {
       // Player A wins - gets all the funds
-      allocations = [2000000, 0, 0]; // A gets both initial allocations
+      allocations = [2, 0, 0]; // A gets both initial allocations
       logger.nitro(`Player A (${participantA}) wins room ${roomId} - taking full allocation`);
     } else if (winnerId === 'B') {
       // Player B wins - gets all the funds
-      allocations = [0, 2000000, 0]; // B gets both initial allocations
+      allocations = [0, 2, 0]; // B gets both initial allocations
       logger.nitro(`Player B (${participantB}) wins room ${roomId} - taking full allocation`);
     } else {
       // Tie or no winner - split evenly
-      allocations = [1000000, 1000000, 0];
+      allocations = [1, 1, 0];
       logger.nitro(`Tie in room ${roomId} - splitting allocation evenly`);
     }
 
