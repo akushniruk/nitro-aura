@@ -101,36 +101,6 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
         return `${hoursAgo} hour${hoursAgo !== 1 ? "s" : ""} ago`;
     };
 
-    // Helper function to get the Nitrolite address from localStorage
-    const getNitroliteAddress = (): string => {
-        if (!address) return "";
-
-        // Try to get the address from localStorage
-        const savedKeys = localStorage.getItem("crypto_keypair");
-        let gameAddress = address; // Fallback to MetaMask address
-
-        if (savedKeys) {
-            try {
-                const parsed = JSON.parse(savedKeys);
-                if (parsed && parsed.address) {
-                    gameAddress = parsed.address;
-                    console.log("Using Nitrolite address from localStorage:", gameAddress);
-                }
-            } catch (e) {
-                console.error("Failed to parse saved keys, using MetaMask address instead:", e);
-            }
-        }
-
-        // Make sure the nitrolite_channel_id exists in localStorage
-        const channelId = localStorage.getItem("nitrolite_channel_id");
-        if (!channelId) {
-            console.log("No nitrolite_channel_id found in localStorage, will need to create a channel");
-        } else {
-            console.log("Found nitrolite_channel_id in localStorage:", channelId);
-        }
-
-        return gameAddress;
-    };
 
     // Handle joining a specific available room
     const handleJoinAvailableRoom = (selectedRoomId: string) => {

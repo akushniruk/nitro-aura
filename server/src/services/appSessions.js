@@ -2,7 +2,7 @@
  * Nitrolite app sessions for game rooms
  * This file handles creating and closing app sessions for games
  */
-import { NitroliteRPC, createAppSessionMessage, createCloseAppSessionMessage } from '@erc7824/nitrolite';
+import { createAppSessionMessage, createCloseAppSessionMessage } from '@erc7824/nitrolite';
 import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 import logger from '../utils/logger.js';
