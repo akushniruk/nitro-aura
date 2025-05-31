@@ -2,7 +2,7 @@
  * Nitrolite RPC (WebSocket) client
  * This file handles all WebSocket communication with Nitrolite server
  */
-import { createAuthRequestMessage, createAuthVerifyMessage, createCloseAppSessionMessage, createPingMessage, NitroliteRPC } from "@erc7824/nitrolite";
+import { createAuthRequestMessage, createAuthVerifyMessage, createPingMessage, NitroliteRPC } from "@erc7824/nitrolite";
 import dotenv from "dotenv";
 import { ethers } from "ethers";
 import WebSocket from "ws";
@@ -302,7 +302,6 @@ export class NitroliteRPCClient {
                             // Request channel information for our address and check if we
                             // need to create one
                             const channels = await this.getChannelInfo();
-
                             // Check if we have valid channels
                             const hasValidChannel = channels && Array.isArray(channels) && channels.length > 0 && channels[0] !== null;
 

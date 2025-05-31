@@ -71,12 +71,12 @@ export async function generateAppSessionMessage(roomId, participantA, participan
         {
           participant: formattedParticipantA,
           asset: 'usdc',
-          amount: '1',
+          amount: '0.01',
         },
         {
           participant: formattedParticipantB,
           asset: 'usdc',
-          amount: '1',
+          amount: '0.01',
         },
         {
           participant: serverAddress,
@@ -491,15 +491,15 @@ export async function closeAppSessionWithWinner(roomId, winnerId = null) {
     let allocations;
     if (winnerId === 'A') {
       // Player A wins - gets all the funds
-      allocations = [0.01, 0, 0]; // A gets both initial allocations
+      allocations = ['0.02', '0', '0']; // A gets both initial allocations
       logger.nitro(`Player A (${participantA}) wins room ${roomId} - taking full allocation`);
     } else if (winnerId === 'B') {
       // Player B wins - gets all the funds
-      allocations = [0, 0.01, 0]; // B gets both initial allocations
+      allocations = ['0', '0.02', '0']; // B gets both initial allocations
       logger.nitro(`Player B (${participantB}) wins room ${roomId} - taking full allocation`);
     } else {
       // Tie or no winner - split evenly
-      allocations = [0.01, 0.01, 0];
+      allocations = ['0.01', '0.01', '0'];
       logger.nitro(`Tie in room ${roomId} - splitting allocation evenly`);
     }
 
@@ -518,7 +518,7 @@ export async function closeAppSessionWithWinner(roomId, winnerId = null) {
  * @param {Array<number>} [allocations=[0,0,0]] - Final allocations
  * @returns {Promise<boolean>} Success status
  */
-export async function closeAppSession(roomId, allocations = [0, 0, 0]) {
+export async function closeAppSession(roomId, allocations) {
   try {
     // Get the app session for this room
     const appSession = roomAppSessions.get(roomId);
@@ -582,6 +582,8 @@ export async function closeAppSession(roomId, allocations = [0, 0, 0]) {
       sign, 
       [closeRequest], 
     );
+
+    logger.data(`Signed app session close message for room ${roomId}:`, signedMessage);
     
     // Send the message directly using ws.send, similar to authentication
     logger.nitro(`Sending app session close message for room ${roomId}`);
