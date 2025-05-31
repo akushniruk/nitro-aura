@@ -2,7 +2,7 @@
  * Nitrolite RPC (WebSocket) client
  * This file handles all WebSocket communication with Nitrolite server
  */
-import { createAuthRequestMessage, createAuthVerifyMessage, createPingMessage, NitroliteRPC } from "@erc7824/nitrolite";
+import { createAuthRequestMessage, createAuthVerifyMessage, createCloseAppSessionMessage, createPingMessage, NitroliteRPC } from "@erc7824/nitrolite";
 import dotenv from "dotenv";
 import { ethers } from "ethers";
 import WebSocket from "ws";

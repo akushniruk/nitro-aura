@@ -101,7 +101,6 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
         return `${hoursAgo} hour${hoursAgo !== 1 ? "s" : ""} ago`;
     };
 
-
     // Handle joining a specific available room
     const handleJoinAvailableRoom = (selectedRoomId: string) => {
         if (!isWalletConnected || !address) {
@@ -318,7 +317,7 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
                                     <div className="rounded-md bg-amber-950/20 p-4 text-sm border border-amber-900/30 shadow-inner">
                                         <p className="mb-2 text-amber-400 font-medium flex items-center">Game Stakes</p>
                                         <p className="text-amber-200 text-sm opacity-90">
-                                            Each player bets <span className="font-bold text-amber-300">$1.00</span>. Winner takes all!
+                                            Each player bets <span className="font-bold text-amber-300">$0.01</span>. Winner takes all!
                                         </p>
                                     </div>
 
@@ -424,7 +423,7 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
                                     <div className="rounded-md bg-amber-950/20 p-4 text-sm border border-amber-900/30 shadow-inner">
                                         <p className="mb-2 text-amber-400 font-medium flex items-center">Game Stakes</p>
                                         <p className="text-amber-200 text-sm opacity-90">
-                                            Each player bets <span className="font-bold text-amber-300">$1.00</span>. Winner takes all!
+                                            Each player bets <span className="font-bold text-amber-300">$0.01</span>. Winner takes all!
                                         </p>
                                     </div>
 

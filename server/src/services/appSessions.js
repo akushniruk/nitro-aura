@@ -373,12 +373,12 @@ export async function createAppSession(roomId, participantA, participantB) {
             {
               participant: participantA,
               asset: 'usdc',
-              amount: '1',
+              amount: '0.01',
             },
             {
               participant: participantB,
               asset: 'usdc',
-              amount: '1',
+              amount: '0.01',
             },
             {
               participant: serverAddress,
@@ -491,15 +491,15 @@ export async function closeAppSessionWithWinner(roomId, winnerId = null) {
     let allocations;
     if (winnerId === 'A') {
       // Player A wins - gets all the funds
-      allocations = [2, 0, 0]; // A gets both initial allocations
+      allocations = [0.01, 0, 0]; // A gets both initial allocations
       logger.nitro(`Player A (${participantA}) wins room ${roomId} - taking full allocation`);
     } else if (winnerId === 'B') {
       // Player B wins - gets all the funds
-      allocations = [0, 2, 0]; // B gets both initial allocations
+      allocations = [0, 0.01, 0]; // B gets both initial allocations
       logger.nitro(`Player B (${participantB}) wins room ${roomId} - taking full allocation`);
     } else {
       // Tie or no winner - split evenly
-      allocations = [1, 1, 0];
+      allocations = [0.01, 0.01, 0];
       logger.nitro(`Tie in room ${roomId} - splitting allocation evenly`);
     }
 
@@ -573,7 +573,6 @@ export async function closeAppSession(roomId, allocations = [0, 0, 0]) {
       app_session_id: appId,
       allocations: finalAllocations,
     };
-    const finalIntent = finalAllocations;
     
     // Use the RPC client's signMessage method for consistent signing
     const sign = rpcClient.signMessage.bind(rpcClient);
@@ -582,7 +581,6 @@ export async function closeAppSession(roomId, allocations = [0, 0, 0]) {
     const signedMessage = await createCloseAppSessionMessage(
       sign, 
       [closeRequest], 
-      finalIntent
     );
     
     // Send the message directly using ws.send, similar to authentication
