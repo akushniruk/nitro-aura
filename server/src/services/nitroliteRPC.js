@@ -196,7 +196,18 @@ export class NitroliteRPCClient {
             // Fallback to regular signing for non-auth messages
             if (!challengeUUID) {
                 logger.auth("No challenge found, using regular message signing");
+                logger.debug("Sign Create APP SESSION", address, data);
+                
                 const messageStr = typeof data === "string" ? data : JSON.stringify(data);
+                logger.data("Server signing message string:", messageStr);
+                logger.data("Server signing message structure:", {
+                    dataType: typeof data,
+                    isArray: Array.isArray(data),
+                    dataLength: Array.isArray(data) ? data.length : messageStr.length,
+                    firstElement: Array.isArray(data) ? data[0] : "N/A",
+                    messagePreview: messageStr.substring(0, 200) + "..."
+                });
+                
                 const digestHex = ethers.id(messageStr);
                 const messageBytes = ethers.getBytes(digestHex);
 

@@ -9,7 +9,10 @@ import {
   createGame, 
   createAppSession,
   closeAppSession,
-  hasAppSession
+  hasAppSession,
+  generateAppSessionMessage,
+  addAppSessionSignature,
+  createAppSessionWithSignatures
 } from '../services/index.js';
 import logger from '../utils/logger.js';
 

@@ -145,11 +145,9 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
             return;
         }
 
-        // Get the Nitrolite address from localStorage
-        const gameAddress = getNitroliteAddress();
-
-        console.log("Joining available room with address:", gameAddress, "and roomId:", selectedRoomId);
-        onJoinRoom({ eoa: gameAddress, roomId: selectedRoomId });
+        // Use MetaMask wallet address for app session participants
+        console.log("Joining available room with MetaMask address:", address, "and roomId:", selectedRoomId);
+        onJoinRoom({ eoa: address, roomId: selectedRoomId });
     };
 
     // Handle manual refresh of available rooms
@@ -185,17 +183,15 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
             return;
         }
 
-        // Get the Nitrolite address from localStorage
-        const gameAddress = getNitroliteAddress();
-
+        // Use MetaMask wallet address for app session participants
         if (mode === "create") {
             // When creating a room, always pass undefined for roomId
-            console.log("Creating a room with address:", gameAddress);
-            onJoinRoom({ eoa: gameAddress, roomId: undefined });
+            console.log("Creating a room with MetaMask address:", address);
+            onJoinRoom({ eoa: address, roomId: undefined });
         } else {
             // When joining, use the entered roomId
-            console.log("Joining a room with address:", gameAddress, "and roomId:", roomId.trim());
-            onJoinRoom({ eoa: gameAddress, roomId: roomId.trim() });
+            console.log("Joining a room with MetaMask address:", address, "and roomId:", roomId.trim());
+            onJoinRoom({ eoa: address, roomId: roomId.trim() });
         }
     };
 
@@ -203,8 +199,7 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
     const handleChannelSuccess = (action: "join" | "create", roomIdParam?: string) => {
         if (!address) return;
 
-        // Get the Nitrolite address from localStorage
-        const gameAddress = getNitroliteAddress();
+        // Use MetaMask wallet address for app session participants
 
         // Add a debounce mechanism to prevent duplicate calls
         const now = Date.now();
@@ -220,11 +215,11 @@ export function Lobby({ onJoinRoom, isConnected, error, availableRooms = [], onG
         window.localStorage.setItem("last_join_call_time", now.toString());
 
         if (action === "create") {
-            console.log("Creating a room with address after channel creation:", gameAddress);
-            onJoinRoom({ eoa: gameAddress, roomId: undefined });
+            console.log("Creating a room with MetaMask address after channel creation:", address);
+            onJoinRoom({ eoa: address, roomId: undefined });
         } else {
-            console.log("Joining a room with address after channel creation:", gameAddress, "and roomId:", roomIdParam);
-            onJoinRoom({ eoa: gameAddress, roomId: roomIdParam });
+            console.log("Joining a room with MetaMask address after channel creation:", address, "and roomId:", roomIdParam);
+            onJoinRoom({ eoa: address, roomId: roomIdParam });
         }
     };
 
